@@ -204,7 +204,27 @@ function parseCSV(text){
 }
 
 /* ══════════════════════ DATA ══════════════════════ */
-const DISC=['Matemática','Português','Física','Química','Biologia','História','Geografia','Filosofia','Sociologia','Inglês','Espanhol','Literatura','Redação'];
+const DISC=[
+  /* Exatas */
+  'Matemática','Física','Química','Biologia',
+  /* Humanas */
+  'História','Geografia','Filosofia','Sociologia',
+  /* Linguagens */
+  'Português','Literatura','Redação','Inglês','Espanhol',
+  /* Vestibulares específicos */
+  'Matemática Avançada','Cálculo','Geometria','Trigonometria','Álgebra',
+  'Física Moderna','Termodinâmica','Eletromagnetismo','Óptica',
+  'Química Orgânica','Química Inorgânica','Físico-Química',
+  'Biologia Celular','Genética','Ecologia','Anatomia','Fisiologia',
+  'História do Brasil','História Geral','Geopolítica','Atualidades',
+  /* Concursos / OAB / específicas */
+  'Direito Constitucional','Direito Administrativo','Direito Civil','Direito Penal','Direito do Trabalho',
+  'Raciocínio Lógico','Informática','Português para Concursos','Legislação',
+  /* Saúde */
+  'Anatomia Humana','Bioquímica','Farmacologia','Microbiologia','Patologia',
+  /* Outras */
+  'Artes','Educação Física','Francês','Alemão','Italiano',
+];
 const DIFS=['Fácil','Médio','Difícil'];
 const FONTES=['ENEM','Fuvest','Unicamp','UNESP','UFMG','PUC','Mackenzie','Vestibular Estadual'];
 const TIPOS=['Múltipla escolha','Dissertativa'];
@@ -3014,6 +3034,7 @@ function Onboarding({ go, auth }) {
   const [d,setD]=useState({ name:auth.user?.name||'', objetivo:'ENEM', ano:'2026', curso:'', horas:'2', materias:[], nivel:'Intermediário', turno:'Noite' });
   const [customObjetivo,setCustomObjetivo]=useState('');
   const [customCurso,setCustomCurso]=useState('');
+  const [customMateria,setCustomMateria]=useState('');
 
   const OBJETIVOS = [
     {v:'ENEM',           icon:'🎯', desc:'Exame Nacional do Ensino Médio'},
@@ -3169,14 +3190,74 @@ function Onboarding({ go, auth }) {
         {/* MULTI - matérias */}
         {cur.type==='multi' && (
           <div>
-            <p style={{fontSize:12,color:'#9CA3AF',margin:'0 0 10px'}}>Selecione quantas quiser (pode pular)</p>
-            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-              {cur.opts.map(o=>(
-                <button key={o} onClick={()=>toggle(o)}
-                  style={{padding:'8px 16px',borderRadius:99,fontSize:13,fontWeight:600,cursor:'pointer',border:'2px solid',borderColor:d.materias.includes(o)?'#163A70':'#E5E7EB',background:d.materias.includes(o)?'#163A70':'#fff',color:d.materias.includes(o)?'#fff':'#374151',transition:'all .2s'}}>
-                  {o}
+            <p style={{fontSize:12,color:'#9CA3AF',margin:'0 0 12px'}}>
+              Selecione quantas quiser • {d.materias.length > 0 ? <span style={{color:'#163A70',fontWeight:700}}>{d.materias.length} selecionada{d.materias.length>1?'s':''}</span> : 'pode pular'}
+            </p>
+
+            {/* Grupos de matérias */}
+            {[
+              {label:'📐 Exatas',         items:['Matemática','Física','Química','Biologia','Matemática Avançada','Cálculo','Geometria','Trigonometria','Álgebra','Física Moderna','Termodinâmica','Eletromagnetismo','Óptica','Química Orgânica','Química Inorgânica','Físico-Química']},
+              {label:'🌍 Humanas',         items:['História','Geografia','Filosofia','Sociologia','História do Brasil','História Geral','Geopolítica','Atualidades']},
+              {label:'📝 Linguagens',      items:['Português','Literatura','Redação','Inglês','Espanhol','Francês','Alemão','Italiano','Artes','Educação Física']},
+              {label:'🔬 Ciências da Vida',items:['Biologia Celular','Genética','Ecologia','Anatomia','Fisiologia','Anatomia Humana','Bioquímica','Farmacologia','Microbiologia','Patologia']},
+              {label:'⚖️ Concursos / OAB', items:['Direito Constitucional','Direito Administrativo','Direito Civil','Direito Penal','Direito do Trabalho','Raciocínio Lógico','Informática','Português para Concursos','Legislação']},
+            ].map(grupo=>(
+              <div key={grupo.label} style={{marginBottom:16}}>
+                <p style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 8px'}}>{grupo.label}</p>
+                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                  {grupo.items.map(o=>{
+                    const sel = d.materias.includes(o);
+                    return (
+                      <button key={o} onClick={()=>toggle(o)}
+                        style={{padding:'7px 14px',borderRadius:99,fontSize:12,fontWeight:600,cursor:'pointer',border:'2px solid',borderColor:sel?'#163A70':'#E5E7EB',background:sel?'#163A70':'#fff',color:sel?'#fff':'#374151',transition:'all .15s'}}>
+                        {sel?'✓ ':''}{o}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Campo de texto para matérias personalizadas */}
+            <div style={{marginTop:8,padding:16,background:'#F8FAFC',borderRadius:14,border:'2px dashed #E5E7EB'}}>
+              <p style={{fontSize:12,fontWeight:700,color:'#6B7280',margin:'0 0 8px'}}>✏️ Adicionar matéria personalizada</p>
+              <div style={{display:'flex',gap:8}}>
+                <input
+                  style={{flex:1,border:'2px solid #E5E7EB',borderRadius:10,padding:'8px 12px',fontSize:13,outline:'none',background:'#fff'}}
+                  placeholder="Ex: Física Quântica, Cálculo III..."
+                  value={customMateria}
+                  onChange={e=>setCustomMateria(e.target.value)}
+                  onKeyDown={e=>{
+                    if(e.key==='Enter' && customMateria.trim()){
+                      const v = customMateria.trim();
+                      if(!d.materias.includes(v)) setD(x=>({...x,materias:[...x.materias,v]}));
+                      setCustomMateria('');
+                    }
+                  }}
+                />
+                <button
+                  onClick={()=>{
+                    const v = customMateria.trim();
+                    if(v && !d.materias.includes(v)){ setD(x=>({...x,materias:[...x.materias,v]})); setCustomMateria(''); }
+                  }}
+                  style={{padding:'8px 16px',borderRadius:10,background:'#163A70',color:'#fff',border:'none',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+                  + Adicionar
                 </button>
-              ))}
+              </div>
+              {/* Tags das matérias personalizadas (não estão na lista padrão) */}
+              {d.materias.filter(m=>!DISC.includes(m)).length > 0 && (
+                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:10}}>
+                  {d.materias.filter(m=>!DISC.includes(m)).map(m=>(
+                    <span key={m} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'5px 12px',borderRadius:99,background:'#163A70',color:'#fff',fontSize:12,fontWeight:600}}>
+                      {m}
+                      <button onClick={()=>setD(x=>({...x,materias:x.materias.filter(i=>i!==m)}))}
+                        style={{background:'rgba(255,255,255,.3)',border:'none',color:'#fff',borderRadius:'50%',width:16,height:16,cursor:'pointer',fontSize:11,lineHeight:'16px',padding:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
