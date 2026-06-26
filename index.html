@@ -2722,25 +2722,50 @@ const ACHIEVEMENTS = [
 ];
 
 /* ───────── UI PRIMITIVES ───────── */
-const C = ({ ch, className='' }) => (
-  <div className={'bg-white rounded-2xl shadow-sm p-5 ' + className}>{ch}</div>
+const C = ({ ch, className='', style={} }) => (
+  <Card className={className} style={style}>{ch}</Card>
 );
-function Card({ children, className='' }) {
-  return <div className={'bg-white rounded-2xl shadow-sm p-5 ' + className}>{children}</div>;
+function Card({ children, className='', style={} }) {
+  // Converte classes Tailwind comuns para inline styles, mantém classes de animação
+  const extra = {};
+  const animCls = [];
+  (className||'').split(' ').forEach(c => {
+    if(c==='mb-2') extra.marginBottom=8;
+    else if(c==='mb-3') extra.marginBottom=12;
+    else if(c==='mb-4') extra.marginBottom=16;
+    else if(c==='mb-6') extra.marginBottom=24;
+    else if(c==='mt-2') extra.marginTop=8;
+    else if(c==='mt-4') extra.marginTop=16;
+    else if(c==='text-center') extra.textAlign='center';
+    else if(c==='p-3') extra.padding=12;
+    else if(c==='p-4') extra.padding=16;
+    else if(c) animCls.push(c);
+  });
+  return (
+    <div className={animCls.join(' ')}
+      style={{background:'#fff',borderRadius:20,boxShadow:'0 1px 4px rgba(0,0,0,.08)',padding:20,...extra,...style}}>
+      {children}
+    </div>
+  );
 }
 
 function Btn({ children, onClick, v='primary', full=false, disabled=false, cls='' }) {
-  const base = `px-5 py-2.5 rounded-xl font-semibold text-sm cursor-pointer border-0 transition-all active:scale-95 ${full?'w-full block':''} ${cls}`;
   const vs = {
-    primary: 'bg-ap-blue text-white hover:bg-ap-deep',
-    gold:    'bg-ap-gold text-ap-deep hover:brightness-105',
-    outline: 'border-2 border-ap-blue text-ap-blue bg-white hover:bg-blue-50',
-    ghost:   'text-ap-blue bg-transparent hover:bg-blue-50',
-    danger:  'bg-red-500 text-white hover:bg-red-600',
+    primary: {background:'#163A70', color:'#fff', border:'none'},
+    gold:    {background:'#F4B400', color:'#163A70', border:'none'},
+    outline: {background:'#fff', color:'#163A70', border:'2px solid #163A70'},
+    ghost:   {background:'transparent', color:'#163A70', border:'none'},
+    danger:  {background:'#EF4444', color:'#fff', border:'none'},
+  };
+  const base = {
+    padding:'12px 20px', borderRadius:14, fontWeight:700, fontSize:14,
+    cursor:'pointer', transition:'all .15s', width: full?'100%':'auto',
+    display: full?'block':'inline-block', textAlign:'center',
+    ...(vs[v]||vs.primary),
+    ...(disabled?{opacity:.5,cursor:'not-allowed',pointerEvents:'none'}:{}),
   };
   return (
-    <button className={`${base} ${vs[v]||vs.primary}`} onClick={onClick}
-      disabled={disabled} style={disabled?{opacity:.5,cursor:'not-allowed',pointerEvents:'none'}:{}}>
+    <button style={base} onClick={onClick} disabled={disabled}>
       {children}
     </button>
   );
@@ -2748,18 +2773,18 @@ function Btn({ children, onClick, v='primary', full=false, disabled=false, cls='
 
 function FInput({ label, ...p }) {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>}
-      <input className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full bg-white" {...p}/>
+    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      {label && <label style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em'}}>{label}</label>}
+      <input style={{border:'2px solid #E5E7EB',borderRadius:12,padding:'12px 16px',fontSize:14,width:'100%',background:'#F9FAFB',color:'#111827',boxSizing:'border-box',outline:'none',fontFamily:'inherit'}} {...p}/>
     </div>
   );
 }
 
 function FSel({ label, opts, ...p }) {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>}
-      <select className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm w-full bg-white" {...p}>
+    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      {label && <label style={{fontSize:11,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em'}}>{label}</label>}
+      <select style={{border:'2px solid #E5E7EB',borderRadius:12,padding:'12px 16px',fontSize:14,width:'100%',background:'#F9FAFB',color:'#111827',outline:'none',fontFamily:'inherit'}} {...p}>
         {opts.map(o => <option key={o.v||o} value={o.v||o}>{o.l||o}</option>)}
       </select>
     </div>
@@ -2768,8 +2793,8 @@ function FSel({ label, opts, ...p }) {
 
 function Progress({ val, color='#163A70' }) {
   return (
-    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-      <div style={{width:`${Math.min(100,Math.max(0,val))}%`, background:color, transition:'width .5s ease'}} className="h-full rounded-full"/>
+    <div style={{width:'100%',height:8,background:'#E5E7EB',borderRadius:99,overflow:'hidden'}}>
+      <div style={{width:`${Math.min(100,Math.max(0,val))}%`,background:color,height:'100%',borderRadius:99,transition:'width .5s ease'}}/>
     </div>
   );
 }
@@ -2777,7 +2802,7 @@ function Progress({ val, color='#163A70' }) {
 function Chip({ children, color='blue' }) {
   const map = { blue:'#DBEAFE:#1E40AF', gold:'#FEF3C7:#92400E', green:'#DCFCE7:#166534', red:'#FEE2E2:#991B1B', gray:'#F3F4F6:#374151' };
   const [bg,tx] = (map[color]||map.gray).split(':');
-  return <span style={{background:bg, color:tx}} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold">{children}</span>;
+  return <span style={{background:bg,color:tx,display:'inline-flex',alignItems:'center',padding:'2px 10px',borderRadius:99,fontSize:12,fontWeight:700}}>{children}</span>;
 }
 
 function Avatar({ name='?', sz=40 }) {
