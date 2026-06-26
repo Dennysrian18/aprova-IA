@@ -3011,71 +3011,198 @@ function ForgotPass({ go }) {
 /* ───────── ONBOARDING ───────── */
 function Onboarding({ go, auth }) {
   const [step,setStep]=useState(0);
-  const [d,setD]=useState({ name:auth.user?.name||'', objetivo:'ENEM', ano:'2025', curso:'Medicina', horas:'2', materias:[], nivel:'Intermediário' });
+  const [d,setD]=useState({ name:auth.user?.name||'', objetivo:'ENEM', ano:'2026', curso:'', horas:'2', materias:[], nivel:'Intermediário', turno:'Noite' });
+  const [customObjetivo,setCustomObjetivo]=useState('');
+  const [customCurso,setCustomCurso]=useState('');
+
+  const OBJETIVOS = [
+    {v:'ENEM',           icon:'🎯', desc:'Exame Nacional do Ensino Médio'},
+    {v:'Fuvest (USP)',   icon:'🏛️', desc:'Universidade de São Paulo'},
+    {v:'Unicamp',        icon:'🔬', desc:'Universidade Estadual de Campinas'},
+    {v:'UNESP',          icon:'📚', desc:'Universidade Estadual Paulista'},
+    {v:'UERJ',           icon:'🌆', desc:'Universidade do Estado do Rio de Janeiro'},
+    {v:'VUNESP',         icon:'📝', desc:'Vestibulares VUNESP'},
+    {v:'PUC',            icon:'✝️',  desc:'Pontifícia Universidade Católica'},
+    {v:'Mackenzie',      icon:'🎓', desc:'Universidade Presbiteriana Mackenzie'},
+    {v:'UEL / UEM',      icon:'🌿', desc:'Universidades Estaduais do Paraná'},
+    {v:'UFPR / UFRGS',   icon:'🏫', desc:'Universidades Federais do Sul'},
+    {v:'Concurso Federal',icon:'🏛', desc:'Concursos do Governo Federal'},
+    {v:'Concurso Estadual',icon:'🏢',desc:'Concursos dos Estados'},
+    {v:'Concurso Municipal',icon:'🏙',desc:'Concursos das Prefeituras'},
+    {v:'OAB',            icon:'⚖️', desc:'Exame da Ordem dos Advogados'},
+    {v:'Residência Médica',icon:'🏥',desc:'Concursos de Residência'},
+    {v:'REVALIDA',       icon:'🩺', desc:'Revalidação de Diploma Médico'},
+    {v:'Outro',          icon:'✏️', desc:'Digite seu exame personalizado'},
+  ];
+
+  const CURSOS = [
+    'Medicina','Direito','Engenharia','Enfermagem','Psicologia',
+    'Administração','Arquitetura','Odontologia','Farmácia','Nutrição',
+    'Fisioterapia','Veterinária','Pedagogia','Contabilidade','TI / Computação',
+    'Economia','Jornalismo','Publicidade','Design','Outro',
+  ];
 
   const steps = [
-    { title:'Como você se chama?',       key:'name',      type:'text',    ph:'Seu nome completo' },
-    { title:'Qual é seu objetivo?',      key:'objetivo',  type:'opts',    opts:['ENEM','Fuvest','Unicamp','UNESP','Vestibular Estadual','Concurso Público'] },
-    { title:'Quando é seu exame?',       key:'ano',       type:'opts',    opts:['2025','2026','2027'] },
-    { title:'Qual curso deseja?',        key:'curso',     type:'text',    ph:'Ex: Medicina, Engenharia...' },
-    { title:'Quantas horas por dia?',    key:'horas',     type:'opts',    opts:['1','2','3','4','5+'] },
-    { title:'Matérias mais difíceis?',   key:'materias',  type:'multi',   opts:DISC },
-    { title:'Qual é o seu nível atual?', key:'nivel',     type:'opts',    opts:['Iniciante','Intermediário','Avançado'] },
+    { title:'Como você se chama?',         key:'name',      type:'text',    ph:'Seu nome completo',       icon:'👋' },
+    { title:'Qual é seu objetivo?',        key:'objetivo',  type:'cards',   opts:OBJETIVOS,                icon:'🎯' },
+    { title:'Quando é seu exame?',         key:'ano',       type:'opts',    opts:['2026','2027','2028','2029','Não definido'], icon:'📅' },
+    { title:'Qual curso você deseja?',     key:'curso',     type:'grid',    opts:CURSOS,                   icon:'🎓' },
+    { title:'Quantas horas por dia?',      key:'horas',     type:'opts',    opts:['Menos de 1h','1h','2h','3h','4h','5h ou mais'], icon:'⏰' },
+    { title:'Qual turno você estuda?',     key:'turno',     type:'opts',    opts:['Manhã ☀️','Tarde 🌤️','Noite 🌙','Madrugada 🌒','Vários turnos 🔄'], icon:'🕐' },
+    { title:'Matérias mais difíceis?',     key:'materias',  type:'multi',   opts:DISC,                     icon:'📖' },
+    { title:'Qual é o seu nível atual?',   key:'nivel',     type:'nivel',   opts:['Iniciante','Intermediário','Avançado','Intensivo'], icon:'📊' },
   ];
+
+  const NIVEL_DESC = {
+    'Iniciante':    'Estou começando a estudar, preciso de muita base.',
+    'Intermediário':'Já tenho alguma base, quero aprofundar.',
+    'Avançado':     'Estou bem preparado, foco em questões difíceis.',
+    'Intensivo':    'Reta final! Preciso maximizar cada hora de estudo.',
+  };
 
   const cur = steps[step];
   const last = step === steps.length-1;
 
+  const curVal = () => {
+    if(cur.key==='objetivo' && d.objetivo==='Outro') return customObjetivo.trim();
+    if(cur.key==='curso' && d.curso==='Outro') return customCurso.trim();
+    return d[cur.key];
+  };
+
   const next = () => {
-    if(last){ auth.update(d); go('questoes'); }
+    // Save custom values
+    const finalD = {...d};
+    if(d.objetivo==='Outro' && customObjetivo.trim()) finalD.objetivo = customObjetivo.trim();
+    if(d.curso==='Outro' && customCurso.trim()) finalD.curso = customCurso.trim();
+    if(last){ auth.update(finalD); go('questoes'); }
     else setStep(s=>s+1);
   };
 
   const toggle = v => setD(x=>({ ...x, materias: x.materias.includes(v) ? x.materias.filter(m=>m!==v) : [...x.materias,v] }));
 
+  const canNext = () => {
+    if(cur.key==='name') return d.name.trim().length >= 2;
+    if(cur.key==='objetivo' && d.objetivo==='Outro') return customObjetivo.trim().length >= 2;
+    if(cur.key==='curso' && d.curso==='Outro') return customCurso.trim().length >= 2;
+    if(cur.key==='materias') return true; // optional
+    return !!d[cur.key];
+  };
+
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'#fff'}}>
-      <div style={{padding:'40px 24px 16px'}}>
-        <div style={{display:'flex',gap:5,marginBottom:32}}>
+      <div style={{padding:'40px 24px 16px',flex:1,overflowY:'auto'}}>
+        {/* Progress bar */}
+        <div style={{display:'flex',gap:4,marginBottom:28}}>
           {steps.map((_,i)=>(
-            <div key={i} style={{flex:1,height:5,borderRadius:3,background:i<=step?'#163A70':'#E5E7EB',transition:'background .3s'}}/>
+            <div key={i} style={{flex:1,height:4,borderRadius:3,background:i<=step?'#163A70':'#E5E7EB',transition:'background .3s'}}/>
           ))}
         </div>
         <p style={{fontSize:12,color:'#9CA3AF',margin:'0 0 4px'}}>Passo {step+1} de {steps.length}</p>
-        <h2 style={{color:'#163A70',fontSize:24,fontWeight:900,margin:'0 0 24px'}} className="fadeUp">{cur.title}</h2>
+        <h2 style={{color:'#163A70',fontSize:22,fontWeight:900,margin:'0 0 20px'}} className="fadeUp">
+          {cur.icon} {cur.title}
+        </h2>
 
+        {/* TEXT input */}
         {cur.type==='text' && (
-          <input style={{width:'100%',borderBottom:'2px solid #163A70',borderTop:'none',borderLeft:'none',borderRight:'none',fontSize:20,fontWeight:700,color:'#163A70',padding:'8px 0',background:'transparent'}}
-            placeholder={cur.ph} value={d[cur.key]} onChange={e=>setD(x=>({...x,[cur.key]:e.target.value}))}/>
+          <input style={{width:'100%',borderBottom:'2px solid #163A70',borderTop:'none',borderLeft:'none',borderRight:'none',fontSize:20,fontWeight:700,color:'#163A70',padding:'8px 0',background:'transparent',outline:'none',boxSizing:'border-box'}}
+            placeholder={cur.ph} value={d[cur.key]} onChange={e=>setD(x=>({...x,[cur.key]:e.target.value}))} autoFocus/>
         )}
 
+        {/* CARDS - objetivo com ícone e descrição */}
+        {cur.type==='cards' && (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {cur.opts.map(o=>{
+              const sel = d[cur.key]===o.v;
+              return (
+                <button key={o.v} onClick={()=>setD(x=>({...x,[cur.key]:o.v}))}
+                  style={{padding:'12px 16px',borderRadius:14,textAlign:'left',cursor:'pointer',border:'2px solid',borderColor:sel?'#163A70':'#E5E7EB',background:sel?'#163A70':'#fff',color:sel?'#fff':'#374151',transition:'all .2s',display:'flex',alignItems:'center',gap:12}}>
+                  <span style={{fontSize:20}}>{o.icon}</span>
+                  <div>
+                    <p style={{margin:0,fontWeight:700,fontSize:14}}>{o.v}</p>
+                    <p style={{margin:0,fontSize:11,color:sel?'rgba(255,255,255,.7)':'#9CA3AF'}}>{o.desc}</p>
+                  </div>
+                  {sel && <span style={{marginLeft:'auto',fontSize:18}}>✓</span>}
+                </button>
+              );
+            })}
+            {d.objetivo==='Outro' && (
+              <input autoFocus style={{marginTop:4,width:'100%',border:'2px solid #163A70',borderRadius:12,padding:'12px 16px',fontSize:15,fontWeight:700,color:'#163A70',outline:'none',boxSizing:'border-box'}}
+                placeholder="Digite o nome do seu exame..." value={customObjetivo} onChange={e=>setCustomObjetivo(e.target.value)}/>
+            )}
+          </div>
+        )}
+
+        {/* OPTS - lista simples */}
         {cur.type==='opts' && (
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {cur.opts.map(o=>(
               <button key={o} onClick={()=>setD(x=>({...x,[cur.key]:o}))}
-                style={{padding:'14px 18px',borderRadius:14,textAlign:'left',fontWeight:600,fontSize:15,cursor:'pointer',border:'2px solid',borderColor:d[cur.key]===o?'#163A70':'#E5E7EB',background:d[cur.key]===o?'#163A70':'#fff',color:d[cur.key]===o?'#fff':'#374151',transition:'all .2s'}}>
-                {o}
+                style={{padding:'14px 18px',borderRadius:14,textAlign:'left',fontWeight:600,fontSize:15,cursor:'pointer',border:'2px solid',borderColor:d[cur.key]===o?'#163A70':'#E5E7EB',background:d[cur.key]===o?'#163A70':'#fff',color:d[cur.key]===o?'#fff':'#374151',transition:'all .2s',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span>{o}</span>
+                {d[cur.key]===o && <span>✓</span>}
               </button>
             ))}
           </div>
         )}
 
+        {/* GRID - cursos em grade 2 colunas */}
+        {cur.type==='grid' && (
+          <div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {cur.opts.map(o=>{
+                const sel = d[cur.key]===o;
+                return (
+                  <button key={o} onClick={()=>setD(x=>({...x,[cur.key]:o}))}
+                    style={{padding:'12px 10px',borderRadius:12,fontWeight:600,fontSize:13,cursor:'pointer',border:'2px solid',borderColor:sel?'#163A70':'#E5E7EB',background:sel?'#163A70':'#fff',color:sel?'#fff':'#374151',transition:'all .2s',textAlign:'center'}}>
+                    {o}
+                  </button>
+                );
+              })}
+            </div>
+            {d.curso==='Outro' && (
+              <input autoFocus style={{marginTop:10,width:'100%',border:'2px solid #163A70',borderRadius:12,padding:'12px 16px',fontSize:15,fontWeight:700,color:'#163A70',outline:'none',boxSizing:'border-box'}}
+                placeholder="Digite o curso desejado..." value={customCurso} onChange={e=>setCustomCurso(e.target.value)}/>
+            )}
+          </div>
+        )}
+
+        {/* MULTI - matérias */}
         {cur.type==='multi' && (
-          <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
-            {cur.opts.map(o=>(
-              <button key={o} onClick={()=>toggle(o)}
-                style={{padding:'8px 16px',borderRadius:99,fontSize:13,fontWeight:600,cursor:'pointer',border:'2px solid',borderColor:d.materias.includes(o)?'#163A70':'#E5E7EB',background:d.materias.includes(o)?'#163A70':'#fff',color:d.materias.includes(o)?'#fff':'#374151',transition:'all .2s'}}>
-                {o}
-              </button>
-            ))}
+          <div>
+            <p style={{fontSize:12,color:'#9CA3AF',margin:'0 0 10px'}}>Selecione quantas quiser (pode pular)</p>
+            <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+              {cur.opts.map(o=>(
+                <button key={o} onClick={()=>toggle(o)}
+                  style={{padding:'8px 16px',borderRadius:99,fontSize:13,fontWeight:600,cursor:'pointer',border:'2px solid',borderColor:d.materias.includes(o)?'#163A70':'#E5E7EB',background:d.materias.includes(o)?'#163A70':'#fff',color:d.materias.includes(o)?'#fff':'#374151',transition:'all .2s'}}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* NIVEL - com descrição */}
+        {cur.type==='nivel' && (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {cur.opts.map(o=>{
+              const sel = d[cur.key]===o;
+              return (
+                <button key={o} onClick={()=>setD(x=>({...x,[cur.key]:o}))}
+                  style={{padding:'14px 18px',borderRadius:14,textAlign:'left',cursor:'pointer',border:'2px solid',borderColor:sel?'#163A70':'#E5E7EB',background:sel?'#163A70':'#fff',color:sel?'#fff':'#374151',transition:'all .2s'}}>
+                  <p style={{margin:0,fontWeight:700,fontSize:15}}>{o} {sel?'✓':''}</p>
+                  <p style={{margin:'2px 0 0',fontSize:12,color:sel?'rgba(255,255,255,.75)':'#9CA3AF'}}>{NIVEL_DESC[o]}</p>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      <div style={{flex:1}}/>
-      <div style={{padding:'16px 24px 36px',display:'flex',gap:10}}>
-        {step>0 && <Btn v="outline" onClick={()=>setStep(s=>s-1)}>Voltar</Btn>}
-        <Btn v={last?'gold':'primary'} full={true} onClick={next}>{last?'Começar a estudar 🚀':'Próximo'}</Btn>
+      <div style={{padding:'16px 24px 36px',display:'flex',gap:10,borderTop:'1px solid #F3F4F6'}}>
+        {step>0 && <Btn v="outline" onClick={()=>setStep(s=>s-1)}>← Voltar</Btn>}
+        <Btn v={last?'gold':'primary'} full={true} onClick={next} disabled={!canNext()}>
+          {last?'Começar a estudar 🚀':cur.key==='materias'?'Próximo (pode pular)':'Próximo →'}
+        </Btn>
       </div>
     </div>
   );
