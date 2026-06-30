@@ -35,6 +35,25 @@ input,textarea,select{outline:none;font-family:inherit;}
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useRef,useCallback} = React;
 
+/* ══════════════════════ CONFIG IA (GEMINI) ══════════════════════
+   Para liberar a IA para TODOS os usuários sem que cada um precise
+   colar uma chave, cole sua chave gratuita do Google AI Studio abaixo
+   (https://aistudio.google.com/app/apikey).
+   ⚠️ Atenção: ao colar aqui, a chave fica visível no código-fonte do
+   site. Como a cota gratuita do Gemini não cobra no cartão, o pior
+   caso é o limite diário ser consumido. Para esconder a chave de vez,
+   seria necessário um pequeno servidor (proxy) — posso montar depois.
+   Se deixar em branco (''), cada usuário cola a própria chave no app. */
+const GEMINI_API_KEY = '';
+const GEMINI_MODEL   = 'gemini-2.0-flash';
+
+/* Proxy opcional (Cloudflare Worker) que guarda a SUA chave do Gemini.
+   Deixe '' para o modo grátis (banco local já responde questões, redação,
+   cronograma e "o que mais cai"). Quando publicar o Worker, cole a URL aqui
+   (ex.: 'https://mentor-ia.SEU-USUARIO.workers.dev') e a conversa livre/
+   explicações passam a funcionar para TODOS os alunos sem nenhuma chave. */
+const IA_PROXY_URL   = '';
+
 /* ══════════════════════ THEME ══════════════════════ */
 const LIGHT = {
   dark:false,
@@ -2729,9 +2748,302 @@ const QS_DEFAULT=[
   {id:"4907",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Social",subtema:"Habermas",dif:"Dif\u00edcil",fonte:"Vestibular",ano:"2024",xp:20,enunciado:"Jurgen Habermas defende a 'acao comunicativa' como base da sociedade democratica. Essa acao visa:",a:"O entendimento mutuo por meio do dialogo racional",b:"A dominacao por meio da linguagem",c:"A imposicao de normas pela violencia simbolica",d:"A manipulacao da opiniao publica",e:"A tecnocracia como forma de governar",ok:"a",exp:"Habermas distingue acao estrategica (orientada ao sucesso) de acao comunicativa (orientada ao entendimento): o dialogo racional, baseado em pretensoes de validade, e a base da democracia deliberativa."},
   {id:"4908",tipo:'multipla',disc:"Sociologia",tema:"Trabalho",subtema:"Alienacao",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"O conceito marxista de alienacao do trabalho descreve a situacao em que o trabalhador:",a:"Se sente estranho ao produto de seu trabalho e ao proprio processo produtivo",b:"Ganha mais do que o valor que produz",c:"Escolhe livremente sua ocupacao",d:"Identifica-se com a empresa",e:"Tem controle total sobre os meios de producao",ok:"a",exp:"Alienacao (Marx): no capitalismo, o trabalhador e separado do produto (pertence ao capitalista), do processo (nao controla), dos outros (competicao) e de si mesmo (nao se realiza)."},
   {id:"4909",tipo:'multipla',disc:"Sociologia",tema:"Politica",subtema:"Democracia representativa",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"Na democracia representativa, os cidadaos exercem o poder politico:",a:"Indiretamente, por meio de representantes eleitos",b:"Diretamente, em assembleias",c:"Por meio de tecnoburocracia",d:"Atraves de lideres religiosos",e:"Pelo mercado economico",ok:"a",exp:"Democracia representativa (indireta): os cidadaos elegem representantes (parlamentares, presidente) para tomar decisoes em seu nome. Contrape-se a democracia direta (Atenas, referendos)."},
-  {id:"4910",tipo:'multipla',disc:"Sociologia",tema:"Cultura",subtema:"Identidade cultural",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"Stuart Hall defende que as identidades culturais na pos-modernidade sao:",a:"Fragmentadas, hibridas e em constante mudanca",b:"Fixas e imutaveis",c:"Determinadas pela classe social",d:"Homogeneas dentro de uma nacao",e:"Definidas biologicamente",ok:"a",exp:"Stuart Hall ('A Identidade Cultural na Pos-Modernidade', 1992) argumenta que as identidades pos-modernas sao descentradas, hibridas, multiplas e sujeitas a negociacao constante, nao fixas."}
+  {id:"4910",tipo:'multipla',disc:"Sociologia",tema:"Cultura",subtema:"Identidade cultural",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"Stuart Hall defende que as identidades culturais na pos-modernidade sao:",a:"Fragmentadas, hibridas e em constante mudanca",b:"Fixas e imutaveis",c:"Determinadas pela classe social",d:"Homogeneas dentro de uma nacao",e:"Definidas biologicamente",ok:"a",exp:"Stuart Hall ('A Identidade Cultural na Pos-Modernidade', 1992) argumenta que as identidades pos-modernas sao descentradas, hibridas, multiplas e sujeitas a negociacao constante, nao fixas."},
+  {id:"5001",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juros simples",dif:"F\u00e1cil",fonte:"Concurso",ano:"2024",xp:10,enunciado:"Um capital de R$ 1.000,00 e aplicado a juros simples de 2% ao mes durante 5 meses. Qual o valor dos juros?",a:"R$ 100,00",b:"R$ 120,00",c:"R$ 90,00",d:"R$ 200,00",e:"R$ 110,00",ok:"a",exp:"Juros simples: J = C x i x t = 1000 x 0,02 x 5 = R$ 100,00."},
+  {id:"5002",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juros simples",dif:"F\u00e1cil",fonte:"Concurso",ano:"2024",xp:10,enunciado:"Um capital de R$ 2.000,00 rende juros simples de 3% ao mes por 4 meses. Qual o montante final?",a:"R$ 2.240,00",b:"R$ 2.060,00",c:"R$ 2.120,00",d:"R$ 2.400,00",e:"R$ 2.200,00",ok:"a",exp:"J = 2000 x 0,03 x 4 = 240. Montante = Capital + Juros = 2000 + 240 = R$ 2.240,00."},
+  {id:"5003",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juros compostos",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"Aplicando R$ 1.000,00 a juros compostos de 10% ao mes durante 2 meses, qual o montante?",a:"R$ 1.210,00",b:"R$ 1.200,00",c:"R$ 1.100,00",d:"R$ 1.220,00",e:"R$ 1.020,00",ok:"a",exp:"Juros compostos: M = C x (1+i)^t = 1000 x (1,10)^2 = 1000 x 1,21 = R$ 1.210,00."},
+  {id:"5004",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juros compostos",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"Sobre R$ 1.000,00 a 10% ao mes por 2 meses, qual a diferenca entre juros compostos e juros simples?",a:"R$ 10,00",b:"R$ 0,00",c:"R$ 21,00",d:"R$ 100,00",e:"R$ 200,00",ok:"a",exp:"Simples: 1000x0,10x2 = 200. Compostos: 1210-1000 = 210. Diferenca = 210 - 200 = R$ 10,00."},
+  {id:"5005",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Porcentagem",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"Quanto e 15% de 240?",a:"36",b:"24",c:"30",d:"40",e:"15",ok:"a",exp:"15% de 240 = 0,15 x 240 = 36."},
+  {id:"5006",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Porcentagem",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"Um produto custa R$ 80,00 e sofre aumento de 25%. Qual o novo preco?",a:"R$ 100,00",b:"R$ 105,00",c:"R$ 95,00",d:"R$ 90,00",e:"R$ 120,00",ok:"a",exp:"Aumento de 25%: 80 x 1,25 = R$ 100,00."},
+  {id:"5007",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Desconto",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"Uma mercadoria de R$ 200,00 e vendida com 30% de desconto. Quanto o cliente paga?",a:"R$ 140,00",b:"R$ 170,00",c:"R$ 160,00",d:"R$ 60,00",e:"R$ 130,00",ok:"a",exp:"Desconto de 30%: paga 70% de 200 = 0,70 x 200 = R$ 140,00."},
+  {id:"5008",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Inflacao",dif:"M\u00e9dio",fonte:"Atualidades",ano:"2024",xp:15,enunciado:"Se um produto passou de R$ 100,00 para R$ 110,00 em um ano, qual foi a inflacao no periodo?",a:"10%",b:"11%",c:"1%",d:"110%",e:"9%",ok:"a",exp:"Variacao = (110-100)/100 = 10/100 = 0,10 = 10%."},
+  {id:"5009",tipo:'dissertativa',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juros compostos",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"Calcule o montante de uma aplicacao de R$ 500,00 a juros compostos de 10% ao mes durante 2 meses.",resposta:"M = 500 x (1,10)^2 = 500 x 1,21 = R$ 605,00 (juros de R$ 105,00).",exp:"Use M = C x (1+i)^t. Com C=500, i=0,10 e t=2: M = 500 x 1,21 = 605."},
+  {id:"5010",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Constituicao de 1988",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"A Constituicao Federal de 1988 ficou conhecida popularmente como:",a:"Constituicao Cidada",b:"Constituicao do Imperio",c:"Constituicao Polaca",d:"Carta Magna de 1824",e:"Constituicao Provisoria",ok:"a",exp:"A CF/88 foi apelidada de Constituicao Cidada por Ulysses Guimaraes, por ampliar direitos e garantias fundamentais apos a ditadura."},
+  {id:"5011",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Clausulas petreas",dif:"M\u00e9dio",fonte:"Concurso PM",ano:"2024",xp:15,enunciado:"Qual destes NAO pode ser abolido por emenda constitucional (clausula petrea)?",a:"A forma federativa de Estado",b:"O numero de ministerios",c:"A aliquota de impostos",d:"O salario minimo",e:"A capital do pais",ok:"a",exp:"Art. 60, paragrafo 4 da CF: nao serao abolidos por emenda a forma federativa, o voto direto/secreto/universal, a separacao dos poderes e os direitos e garantias individuais."},
+  {id:"5012",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Remedios constitucionais",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"O remedio constitucional que protege direito liquido e certo nao amparado por habeas corpus ou habeas data e o:",a:"Mandado de seguranca",b:"Habeas corpus",c:"Mandado de injuncao",d:"Habeas data",e:"Acao popular",ok:"a",exp:"O mandado de seguranca protege direito liquido e certo, individual ou coletivo, quando nao cabivel HC (locomocao) nem HD (informacoes)."},
+  {id:"5013",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Remedios constitucionais",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"O habeas corpus e o remedio constitucional destinado a proteger:",a:"A liberdade de locomocao",b:"O direito a informacao",c:"O direito de propriedade",d:"A honra",e:"O sigilo bancario",ok:"a",exp:"O habeas corpus protege a liberdade de locomocao (ir, vir e permanecer) contra ilegalidade ou abuso de poder."},
+  {id:"5014",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Direitos sociais",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"Segundo o art. 6 da CF/88, e exemplo de direito social:",a:"A saude",b:"A propriedade privada",c:"O sigilo de correspondencia",d:"A livre concorrencia",e:"A nacionalidade",ok:"a",exp:"Art. 6: sao direitos sociais a educacao, a saude, a alimentacao, o trabalho, a moradia, a seguranca, a previdencia, entre outros."},
+  {id:"5015",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Separacao dos poderes",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"Sao Poderes da Uniao, independentes e harmonicos entre si:",a:"Legislativo, Executivo e Judiciario",b:"Federal, Estadual e Municipal",c:"Civil, Militar e Eleitoral",d:"Moderador, Executivo e Legislativo",e:"Uniao, Estados e Municipios",ok:"a",exp:"Art. 2 da CF: sao Poderes da Uniao, independentes e harmonicos, o Legislativo, o Executivo e o Judiciario."},
+  {id:"5016",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Fundamentos da Republica",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"Qual e um dos fundamentos da Republica Federativa do Brasil (art. 1 da CF)?",a:"A dignidade da pessoa humana",b:"A pena de morte",c:"O voto facultativo obrigatorio",d:"A censura previa",e:"O monopolio partidario",ok:"a",exp:"Art. 1: soberania, cidadania, dignidade da pessoa humana, valores sociais do trabalho e da livre iniciativa e o pluralismo politico."},
+  {id:"5017",tipo:'multipla',disc:"Direito",tema:"Direito Constitucional",subtema:"Elegibilidade",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"A idade minima exigida para ser candidato a Presidente da Republica e de:",a:"35 anos",b:"21 anos",c:"30 anos",d:"18 anos",e:"40 anos",ok:"a",exp:"Art. 14: 35 anos para Presidente e Senador; 30 para Governador; 21 para Deputado e Prefeito; 18 para Vereador."},
+  {id:"5018",tipo:'multipla',disc:"Direito",tema:"Direito Penal",subtema:"Conceito de crime",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"Segundo a teoria tripartite, o crime e o fato:",a:"Tipico, ilicito e culpavel",b:"Apenas tipico",c:"Tipico e doloso",d:"Ilicito e civil",e:"Administrativo e penal",ok:"a",exp:"Teoria tripartite: crime e o fato tipico (previsto em lei), ilicito (contrario ao direito) e culpavel (reprovavel)."},
+  {id:"5019",tipo:'multipla',disc:"Direito",tema:"Direito Penal",subtema:"Excludentes de ilicitude",dif:"M\u00e9dio",fonte:"Concurso PM",ano:"2024",xp:15,enunciado:"NAO constitui excludente de ilicitude:",a:"O arrependimento posterior",b:"A legitima defesa",c:"O estado de necessidade",d:"O estrito cumprimento do dever legal",e:"O exercicio regular de direito",ok:"a",exp:"Excludentes de ilicitude (art. 23): estado de necessidade, legitima defesa, estrito cumprimento do dever legal e exercicio regular de direito."},
+  {id:"5020",tipo:'multipla',disc:"Direito",tema:"Direito Penal",subtema:"Culpa",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"Sao modalidades de culpa no Direito Penal:",a:"Imprudencia, negligencia e impericia",b:"Dolo, fraude e simulacao",c:"Premeditacao e vinganca",d:"Tentativa e consumacao",e:"Acao e omissao",ok:"a",exp:"Culpa ocorre por imprudencia (agir sem cautela), negligencia (deixar de agir) ou impericia (falta de aptidao tecnica)."},
+  {id:"5021",tipo:'multipla',disc:"Direito",tema:"Direito Penal",subtema:"Imputabilidade",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"No Direito Penal brasileiro, sao penalmente inimputaveis os menores de:",a:"18 anos",b:"16 anos",c:"21 anos",d:"14 anos",e:"12 anos",ok:"a",exp:"Art. 27 do CP e art. 228 da CF: os menores de 18 anos sao inimputaveis, sujeitos as normas do ECA."},
+  {id:"5022",tipo:'multipla',disc:"Direito",tema:"Direito Penal",subtema:"Penas",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"A Constituicao Federal proibe, salvo em caso de guerra declarada, penas:",a:"De carater perpetuo e de morte",b:"De multa",c:"Restritivas de direitos",d:"Privativas de liberdade",e:"De prestacao de servicos",ok:"a",exp:"Art. 5, XLVII: nao havera penas de morte (salvo guerra), de carater perpetuo, de trabalhos forcados, de banimento nem cruels."},
+  {id:"5023",tipo:'multipla',disc:"Direito",tema:"Direito Administrativo",subtema:"Principios",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"Os principios expressos da Administracao Publica (art. 37 da CF) sao lembrados pela sigla LIMPE. O E significa:",a:"Eficiencia",b:"Economia",c:"Equidade",d:"Estabilidade",e:"Execucao",ok:"a",exp:"LIMPE: Legalidade, Impessoalidade, Moralidade, Publicidade e Eficiencia."},
+  {id:"5024",tipo:'multipla',disc:"Direito",tema:"Direito Administrativo",subtema:"Principio da legalidade",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"Pelo principio da legalidade, a Administracao Publica pode:",a:"Fazer apenas o que a lei autoriza ou determina",b:"Fazer tudo que a lei nao proibe",c:"Agir conforme a vontade do gestor",d:"Ignorar a lei por interesse publico",e:"Criar tributos sem lei",ok:"a",exp:"Diferente do particular (que pode tudo que a lei nao proibe), a Administracao so age quando a lei autoriza ou determina."},
+  {id:"5025",tipo:'multipla',disc:"Direito",tema:"Direito Administrativo",subtema:"Atos administrativos",dif:"M\u00e9dio",fonte:"Concurso",ano:"2024",xp:15,enunciado:"E atributo do ato administrativo:",a:"Presuncao de legitimidade",b:"Irrevogabilidade absoluta",c:"Gratuidade",d:"Informalidade total",e:"Sigilo permanente",ok:"a",exp:"Atributos do ato administrativo: presuncao de legitimidade, imperatividade, autoexecutoriedade e tipicidade."},
+  {id:"5026",tipo:'multipla',disc:"Direito",tema:"Direito Administrativo",subtema:"Concurso publico",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"A investidura em cargo ou emprego publico efetivo depende, em regra, de:",a:"Aprovacao previa em concurso publico",b:"Indicacao politica",c:"Sorteio",d:"Convite do gestor",e:"Tempo de servico voluntario",ok:"a",exp:"Art. 37, II da CF: a investidura em cargo ou emprego publico depende de aprovacao previa em concurso publico de provas ou provas e titulos."},
+  {id:"5027",tipo:'multipla',disc:"Direito",tema:"Direitos Humanos",subtema:"DUDH",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"A Declaracao Universal dos Direitos Humanos foi adotada pela ONU no ano de:",a:"1948",b:"1888",c:"1969",d:"2001",e:"1789",ok:"a",exp:"A DUDH foi proclamada pela Assembleia Geral da ONU em 10 de dezembro de 1948, apos a Segunda Guerra Mundial."},
+  {id:"5028",tipo:'multipla',disc:"Direito",tema:"Direitos Humanos",subtema:"Caracteristicas",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"A afirmacao de que os direitos humanos pertencem a todas as pessoas, sem distincao, expressa a caracteristica da:",a:"Universalidade",b:"Onerosidade",c:"Temporalidade",d:"Renunciabilidade",e:"Divisibilidade",ok:"a",exp:"Os direitos humanos sao universais (de todos), indivisiveis, interdependentes, inalienaveis e imprescritiveis."},
+  {id:"5029",tipo:'multipla',disc:"Direito",tema:"Legislacao de Transito",subtema:"CTB",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"O Codigo de Transito Brasileiro corresponde a qual lei?",a:"Lei 9.503/1997",b:"Lei 8.069/1990",c:"Lei 11.343/2006",d:"Lei 10.826/2003",e:"Lei 11.340/2006",ok:"a",exp:"O CTB e a Lei 9.503/1997, que disciplina o transito de veiculos, pedestres e animais nas vias terrestres."},
+  {id:"5030",tipo:'multipla',disc:"Direito",tema:"Legislacao de Transito",subtema:"Infracoes",dif:"M\u00e9dio",fonte:"Concurso PM",ano:"2024",xp:15,enunciado:"Dirigir sob influencia de alcool e, segundo o CTB, infracao de natureza:",a:"Gravissima",b:"Leve",c:"Media",d:"Grave",e:"Sem penalidade",ok:"a",exp:"Conduzir sob influencia de alcool e infracao gravissima, com multa elevada, suspensao do direito de dirigir e possivel crime de transito."},
+  {id:"5031",tipo:'multipla',disc:"Direito",tema:"Legislacao de Transito",subtema:"Documentos",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"O documento obrigatorio que habilita uma pessoa a conduzir veiculo automotor e a:",a:"CNH (Carteira Nacional de Habilitacao)",b:"CPF",c:"RG",d:"CTPS",e:"CRLV",ok:"a",exp:"A CNH habilita a conducao. O CRLV licencia o veiculo, mas nao habilita o condutor."},
+  {id:"5032",tipo:'multipla',disc:"Direito",tema:"Legislacao de Transito",subtema:"Seguranca",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"Quanto ao uso do cinto de seguranca, o CTB exige que:",a:"Todos os ocupantes do veiculo o utilizem",b:"Apenas o motorista o utilize",c:"Apenas os bancos da frente o utilizem",d:"Seja opcional na cidade",e:"Apenas em rodovias",ok:"a",exp:"O uso do cinto de seguranca e obrigatorio para todos os ocupantes do veiculo, em vias urbanas e rurais."},
+  {id:"5033",tipo:'multipla',disc:"Direito",tema:"Legislacao Especial",subtema:"Lei de Drogas",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"A Lei de Drogas em vigor no Brasil e a:",a:"Lei 11.343/2006",b:"Lei 9.503/1997",c:"Lei 8.069/1990",d:"Lei 11.340/2006",e:"Lei 10.826/2003",ok:"a",exp:"A Lei 11.343/2006 institui o Sistema Nacional de Politicas Publicas sobre Drogas (Sisnad) e define crimes e penas."},
+  {id:"5034",tipo:'multipla',disc:"Direito",tema:"Legislacao Especial",subtema:"Lei Maria da Penha",dif:"F\u00e1cil",fonte:"Concurso PM",ano:"2024",xp:10,enunciado:"A Lei Maria da Penha (11.340/2006) cria mecanismos para coibir a violencia:",a:"Domestica e familiar contra a mulher",b:"No transito",c:"Ambiental",d:"Tributaria",e:"No esporte",ok:"a",exp:"A Lei 11.340/2006 coibe a violencia domestica e familiar contra a mulher, prevendo medidas protetivas de urgencia."},
+  {id:"5035",tipo:'multipla',disc:"Direito",tema:"Legislacao Especial",subtema:"ECA",dif:"M\u00e9dio",fonte:"Concurso PC",ano:"2024",xp:15,enunciado:"Segundo o ECA (Lei 8.069/1990), considera-se crianca a pessoa com ate:",a:"12 anos incompletos",b:"14 anos",c:"16 anos",d:"10 anos",e:"18 anos",ok:"a",exp:"O ECA considera crianca a pessoa de ate 12 anos incompletos e adolescente entre 12 e 18 anos de idade."},
+  {id:"5036",tipo:'multipla',disc:"Direito",tema:"Legislacao Especial",subtema:"Estatuto do Desarmamento",dif:"M\u00e9dio",fonte:"Concurso PM",ano:"2024",xp:15,enunciado:"O Estatuto do Desarmamento, que trata do registro, posse e comercializacao de armas de fogo, e a:",a:"Lei 10.826/2003",b:"Lei 9.503/1997",c:"Lei 11.343/2006",d:"Lei 8.069/1990",e:"Lei 11.340/2006",ok:"a",exp:"A Lei 10.826/2003 (Estatuto do Desarmamento) regula o registro, a posse e o porte de armas e cria o Sinarm."},
+  {id:"5037",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Modernismo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"A Semana de Arte Moderna de 1922, em Sao Paulo, e considerada o marco inicial do:",a:"Modernismo brasileiro",b:"Barroco",c:"Romantismo",d:"Realismo",e:"Arcadismo",ok:"a",exp:"A Semana de 22 rompeu com o academicismo e inaugurou o Modernismo no Brasil, valorizando temas e linguagem nacionais."},
+  {id:"5038",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Modernismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"A obra Abaporu, de Tarsila do Amaral, esta associada a qual movimento?",a:"Antropofagico",b:"Cubismo russo",c:"Impressionismo",d:"Barroco mineiro",e:"Surrealismo belga",ok:"a",exp:"O quadro Abaporu (1928) inspirou o Movimento Antropofagico, que propunha deglutir influencias estrangeiras e criar arte genuinamente brasileira."},
+  {id:"5039",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Barroco",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"O estilo Barroco, presente em Minas Gerais com Aleijadinho, caracteriza-se por:",a:"Dramaticidade, contraste e forte religiosidade",b:"Linhas retas e minimalismo",c:"Geometria abstrata",d:"Ausencia de ornamentos",e:"Cores planas e chapadas",ok:"a",exp:"O Barroco explora contrastes (luz e sombra), movimento, exagero e temas religiosos. Aleijadinho e o grande nome no Brasil."},
+  {id:"5040",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Renascimento",dif:"F\u00e1cil",fonte:"Vestibular",ano:"2024",xp:10,enunciado:"O Renascimento, com Leonardo da Vinci e Michelangelo, valorizou principalmente:",a:"O humanismo e a perspectiva",b:"O abstracionismo",c:"A arte digital",d:"O grafite urbano",e:"A arte rupestre",ok:"a",exp:"O Renascimento retomou os valores classicos, colocando o ser humano no centro (humanismo) e desenvolvendo a perspectiva."},
+  {id:"5041",tipo:'multipla',disc:"Artes",tema:"Arte e sociedade",subtema:"Arte como critica social",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"Murais e grafites que denunciam desigualdades sao exemplos de arte que funciona como:",a:"Critica e reflexao social",b:"Mera decoracao",c:"Propaganda comercial",d:"Registro cientifico",e:"Documento juridico",ok:"a",exp:"A arte tambem e instrumento de critica social, dando visibilidade a problemas e provocando reflexao no espectador."},
+  {id:"5042",tipo:'multipla',disc:"Artes",tema:"Patrimonio cultural",subtema:"IPHAN",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"No Brasil, o orgao responsavel por proteger o patrimonio historico e cultural e o:",a:"IPHAN",b:"IBGE",c:"INSS",d:"IBAMA",e:"INMETRO",ok:"a",exp:"O IPHAN (Instituto do Patrimonio Historico e Artistico Nacional) preserva bens culturais materiais e imateriais."},
+  {id:"5043",tipo:'multipla',disc:"Atualidades",tema:"Tecnologia",subtema:"Inteligencia artificial",dif:"M\u00e9dio",fonte:"Atualidades",ano:"2025",xp:15,enunciado:"Um dos principais debates eticos sobre a inteligencia artificial generativa e:",a:"A disseminacao de desinformacao e fake news",b:"O fim da eletricidade",c:"A proibicao da internet",d:"A volta do telegrafo",e:"A extincao dos livros",ok:"a",exp:"Entre os riscos da IA generativa estao a producao de desinformacao, deepfakes, vieses e questoes de privacidade e direitos autorais."},
+  {id:"5044",tipo:'multipla',disc:"Biologia",tema:"Saude",subtema:"Vacinacao",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"A vacinacao protege o organismo porque estimula a producao de:",a:"Anticorpos pelo proprio corpo (imunidade ativa)",b:"Antibioticos",c:"Hormonios do crescimento",d:"Enzimas digestivas",e:"Vitaminas",ok:"a",exp:"A vacina apresenta antigenos que levam o corpo a produzir anticorpos e celulas de memoria, conferindo imunidade ativa artificial."},
+  {id:"5045",tipo:'multipla',disc:"Biologia",tema:"Saude",subtema:"SUS",dif:"M\u00e9dio",fonte:"Atualidades",ano:"2024",xp:15,enunciado:"Sao principios do Sistema Unico de Saude (SUS):",a:"Universalidade, integralidade e equidade",b:"Privatizacao e lucro",c:"Exclusividade e seletividade",d:"Centralizacao total",e:"Cobranca por consulta",ok:"a",exp:"O SUS se baseia na universalidade (todos tem direito), integralidade (atencao completa) e equidade (tratar desigualmente os desiguais)."},
+  {id:"5046",tipo:'multipla',disc:"Geografia",tema:"Meio ambiente",subtema:"Mudancas climaticas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"O aquecimento global e intensificado principalmente pela emissao de:",a:"Gases do efeito estufa, como CO2 e metano",b:"Oxigenio puro",c:"Gas nobre",d:"Vapor de nitrogenio inerte",e:"Gas helio",ok:"a",exp:"A queima de combustiveis fosseis libera CO2 e metano, que retem calor na atmosfera e intensificam o efeito estufa."},
+  {id:"5047",tipo:'multipla',disc:"Atualidades",tema:"Sustentabilidade",subtema:"ODS",dif:"M\u00e9dio",fonte:"Atualidades",ano:"2024",xp:15,enunciado:"A Agenda 2030 da ONU e composta por quantos Objetivos de Desenvolvimento Sustentavel (ODS)?",a:"17",b:"5",c:"10",d:"25",e:"8",ok:"a",exp:"A Agenda 2030 reune 17 ODS (erradicar a pobreza, educacao de qualidade, acao climatica etc.), com 169 metas."},
+  {id:"5048",tipo:'multipla',disc:"Conhecimentos Especificos",tema:"Primeiros Socorros",subtema:"RCP",dif:"M\u00e9dio",fonte:"Bombeiros",ano:"2024",xp:15,enunciado:"Na reanimacao cardiopulmonar (RCP) de um adulto, a frequencia recomendada de compressoes toracicas e de:",a:"100 a 120 por minuto",b:"20 a 30 por minuto",c:"200 a 240 por minuto",d:"10 por minuto",e:"60 por minuto",ok:"a",exp:"As diretrizes recomendam de 100 a 120 compressoes por minuto, com profundidade de cerca de 5 cm no adulto."},
+  {id:"5049",tipo:'multipla',disc:"Conhecimentos Especificos",tema:"Prevencao de Incendio",subtema:"Triangulo do fogo",dif:"F\u00e1cil",fonte:"Bombeiros",ano:"2024",xp:10,enunciado:"O triangulo do fogo e formado por:",a:"Combustivel, comburente e calor",b:"Agua, terra e ar",c:"Fumaca, cinza e brasa",d:"Oxigenio, hidrogenio e carbono",e:"Luz, som e calor",ok:"a",exp:"O fogo precisa de combustivel (o que queima), comburente (oxigenio) e calor (fonte de ignicao). Remover um deles extingue o fogo."},
+  {id:"5050",tipo:'multipla',disc:"Conhecimentos Especificos",tema:"Prevencao de Incendio",subtema:"Agentes extintores",dif:"M\u00e9dio",fonte:"Bombeiros",ano:"2024",xp:15,enunciado:"Por que NAO se deve usar extintor de agua em incendio com equipamentos eletricos energizados?",a:"A agua conduz eletricidade e pode causar choque",b:"A agua e inflamavel",c:"A agua apaga rapido demais",d:"A agua nao molha metais",e:"A agua aumenta o oxigenio",ok:"a",exp:"Agua conduz corrente eletrica; em incendios classe C (eletricos) usa-se CO2 ou po quimico. Primeiro, se possivel, desligar a energia."},
+  {id:"5051",tipo:'multipla',disc:"Conhecimentos Especificos",tema:"Primeiros Socorros",subtema:"Emergencia",dif:"F\u00e1cil",fonte:"Bombeiros",ano:"2024",xp:10,enunciado:"O numero de telefone do Corpo de Bombeiros para emergencias no Brasil e:",a:"193",b:"190",c:"192",d:"199",e:"100",ok:"a",exp:"193 e o numero do Corpo de Bombeiros; 190 e a Policia Militar e 192 e o SAMU."},
+  {id:"5052",tipo:'multipla',disc:"Conhecimentos Especificos",tema:"Primeiros Socorros",subtema:"Vitima inconsciente",dif:"M\u00e9dio",fonte:"Bombeiros",ano:"2024",xp:15,enunciado:"Diante de uma vitima inconsciente que respira normalmente e sem suspeita de trauma, a conduta indicada e:",a:"Coloca-la em posicao lateral de seguranca e monitorar",b:"Dar agua imediatamente",c:"Sacudir com forca",d:"Sentar e fazer caminhar",e:"Iniciar compressoes toracicas",ok:"a",exp:"A posicao lateral de seguranca mantem as vias aereas livres e evita aspiracao, enquanto se monitora e aciona o socorro."},
+  {id:"5053",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Socrates",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"O metodo socratico que, por meio de perguntas, ajuda o interlocutor a dar a luz o proprio conhecimento e a:",a:"Maieutica",b:"Dialetica hegeliana",c:"Inducao baconiana",d:"Duvida cartesiana",e:"Dogmatica",ok:"a",exp:"Socrates usava a maieutica (parto das ideias): por perguntas, conduzia o outro a descobrir a verdade. Lema: conhece-te a ti mesmo."},
+  {id:"5054",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Platao",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"No Mito da Caverna, Platao defende que o mundo sensivel (das aparencias) e:",a:"Uma copia imperfeita do mundo das ideias",b:"A unica realidade existente",c:"Criado pela ciencia moderna",d:"Identico ao mundo inteligivel",e:"Ilusao sem nenhuma relacao com a verdade",ok:"a",exp:"Para Platao, o mundo sensivel e copia do mundo das ideias (inteligivel), onde estao as essencias perfeitas e eternas."},
+  {id:"5055",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Aristoteles",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2024",xp:15,enunciado:"Para Aristoteles, a virtude etica consiste no:",a:"Justo meio (meio-termo) entre dois extremos",b:"Prazer imediato acima de tudo",c:"Desprezo total pela razao",d:"Acumulo de riquezas",e:"Isolamento da sociedade",ok:"a",exp:"Aristoteles define a virtude como o meio-termo (mesotes) entre o excesso e a falta, ex.: a coragem entre a covardia e a temeridade."},
+  {id:"5056",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Moderna",subtema:"Descartes",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"A celebre frase Penso, logo existo expressa o ponto de partida da filosofia de:",a:"Rene Descartes",b:"Karl Marx",c:"Friedrich Nietzsche",d:"Santo Agostinho",e:"John Locke",ok:"a",exp:"Descartes, pai do racionalismo, parte da duvida metodica e chega ao cogito (penso, logo existo) como verdade indubitavel."},
+  {id:"5057",tipo:'multipla',disc:"Sociologia",tema:"Cultura",subtema:"Industria cultural",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"O conceito de industria cultural, criado por Adorno e Horkheimer (Escola de Frankfurt), critica:",a:"A transformacao da cultura em mercadoria padronizada",b:"A valorizacao da arte erudita",c:"O fim do consumo de massa",d:"A ausencia de meios de comunicacao",e:"O excesso de cultura popular autentica",ok:"a",exp:"A industria cultural produz bens culturais em serie para o consumo de massa, padronizando gostos e reduzindo a capacidade critica."},
+  {id:"5058",tipo:'multipla',disc:"Geografia",tema:"Blocos economicos",subtema:"Mercosul",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"Sao paises fundadores do Mercosul:",a:"Brasil, Argentina, Uruguai e Paraguai",b:"Brasil, Chile e Peru",c:"Brasil, EUA e Mexico",d:"Brasil, Portugal e Espanha",e:"Brasil, China e India",ok:"a",exp:"O Mercosul foi criado pelo Tratado de Assuncao (1991) por Brasil, Argentina, Uruguai e Paraguai."},
+  {id:"5059",tipo:'multipla',disc:"Geografia",tema:"Blocos economicos",subtema:"Uniao Europeia",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"A moeda comum adotada pela maioria dos paises da Uniao Europeia e o:",a:"Euro",b:"Dolar",c:"Iene",d:"Libra",e:"Real",ok:"a",exp:"O Euro e a moeda oficial da zona do euro, usada pela maioria (mas nao todos) dos membros da Uniao Europeia."},
+  {id:"5060",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Era Vargas",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"A Consolidacao das Leis do Trabalho (CLT), de 1943, foi um marco do governo de:",a:"Getulio Vargas",b:"Dom Pedro II",c:"Juscelino Kubitschek",d:"Marechal Deodoro",e:"Tancredo Neves",ok:"a",exp:"Na Era Vargas, a CLT (1943) reuniu e ampliou os direitos trabalhistas, como jornada e ferias, marcando o trabalhismo brasileiro."},
+  {id:"5061",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Ditadura militar",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"O Ato Institucional n. 5 (AI-5), de 1968, durante a ditadura militar, caracterizou-se por:",a:"Endurecer o regime e suspender garantias e direitos",b:"Ampliar a liberdade de imprensa",c:"Restaurar eleicoes diretas",d:"Encerrar a ditadura",e:"Criar o voto feminino",ok:"a",exp:"O AI-5 foi o mais duro ato do regime: fechou o Congresso, suspendeu o habeas corpus para crimes politicos e institucionalizou a censura."},
+  {id:"5062",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Figuras de linguagem",subtema:"Metafora",dif:"F\u00e1cil",fonte:"ENEM",ano:"2024",xp:10,enunciado:"Na frase Suas palavras sao punhais, identifica-se a figura de linguagem:",a:"Metafora",b:"Onomatopeia",c:"Pleonasmo",d:"Eufemismo",e:"Hiperbato",ok:"a",exp:"Ha metafora: comparacao implicita entre palavras e punhais, sugerindo que as palavras ferem, sem usar termos comparativos."},
+  {id:"5063",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Funcoes da linguagem",subtema:"Funcao conativa",dif:"M\u00e9dio",fonte:"ENEM",ano:"2024",xp:15,enunciado:"Um anuncio publicitario que usa verbos no imperativo para convencer o leitor predomina na funcao:",a:"Conativa (apelativa)",b:"Emotiva",c:"Fatica",d:"Metalinguistica",e:"Poetica",ok:"a",exp:"A funcao conativa/apelativa centra-se no receptor, buscando convence-lo ou leva-lo a agir, tipica da publicidade."},
+  {id:"6001",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Porcentagem",subtema:"Calculo de porcentagem",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um produto custava R$ 200,00 e teve aumento de 15%. Qual o novo preco?",a:"R$ 230,00",b:"R$ 215,00",c:"R$ 220,00",d:"R$ 240,00",e:"R$ 235,00",ok:"a",exp:"200 x 1,15 = 230. Aumento de 15% sobre 200 e 30, logo 200 + 30 = 230."},
+  {id:"6002",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Porcentagem",subtema:"Desconto",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um produto de R$ 500,00 teve desconto de 20%. Quanto custa apos o desconto?",a:"R$ 400,00",b:"R$ 480,00",c:"R$ 450,00",d:"R$ 420,00",e:"R$ 380,00",ok:"a",exp:"500 x 0,80 = 400. Desconto de 20% e 100, logo 500 - 100 = 400."},
+  {id:"6003",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Porcentagem",subtema:"Porcentagem inversa",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Apos um aumento de 25%, um produto passou a custar R$ 250,00. Qual era o preco original?",a:"R$ 200,00",b:"R$ 225,00",c:"R$ 187,50",d:"R$ 210,00",e:"R$ 195,00",ok:"a",exp:"x * 1,25 = 250 => x = 250/1,25 = 200."},
+  {id:"6004",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Porcentagem",subtema:"Porcentagem composta",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um produto teve aumento de 10% e depois de 20%. O aumento total percentual foi de:",a:"32%",b:"30%",c:"31%",d:"33%",e:"28%",ok:"a",exp:"1,10 x 1,20 = 1,32 => aumento de 32%."},
+  {id:"6005",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Porcentagem",subtema:"Porcentagem de uma quantidade",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Em uma turma de 40 alunos, 30% faltaram. Quantos alunos faltaram?",a:"12",b:"10",c:"14",d:"8",e:"15",ok:"a",exp:"30% de 40 = 0,30 x 40 = 12."},
+  {id:"6006",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Razao e Proporcao",subtema:"Razao",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A razao entre 12 e 4 e:",a:"3",b:"2",c:"4",d:"6",e:"8",ok:"a",exp:"Razao = 12/4 = 3."},
+  {id:"6007",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Razao e Proporcao",subtema:"Proporcao direta",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Se 3 livros custam R$ 45,00, quanto custam 7 livros ao mesmo preco?",a:"R$ 105,00",b:"R$ 90,00",c:"R$ 100,00",d:"R$ 112,00",e:"R$ 95,00",ok:"a",exp:"Proporcao direta: 45/3 = 15 por livro. 7 x 15 = 105."},
+  {id:"6008",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Razao e Proporcao",subtema:"Proporcao inversa",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"5 pedreiros constroem um muro em 12 dias. Em quantos dias 10 pedreiros constroem o mesmo muro?",a:"6 dias",b:"8 dias",c:"10 dias",d:"4 dias",e:"7 dias",ok:"a",exp:"Proporcao inversa: 5 x 12 = 10 x d => d = 60/10 = 6."},
+  {id:"6009",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Razao e Proporcao",subtema:"Divisao proporcional",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Divida R$ 120,00 entre Ana e Bia na razao 1:2. Ana recebe:",a:"R$ 40,00",b:"R$ 60,00",c:"R$ 80,00",d:"R$ 30,00",e:"R$ 50,00",ok:"a",exp:"Total de partes: 1+2=3. Ana: 1/3 de 120 = 40."},
+  {id:"6010",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Razao e Proporcao",subtema:"Escala",dif:"F\u00e1cil",fonte:"Vestibular",ano:"2023",xp:10,enunciado:"Em um mapa na escala 1:50.000, uma distancia de 4 cm representa, na realidade:",a:"2 km",b:"4 km",c:"5 km",d:"1 km",e:"3 km",ok:"a",exp:"4 cm x 50.000 = 200.000 cm = 2.000 m = 2 km."},
+  {id:"6011",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Regra de Tres",subtema:"Regra de tres simples direta",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Se um carro percorre 300 km com 30 litros de gasolina, quantos litros serao necessarios para percorrer 500 km?",a:"50 litros",b:"45 litros",c:"60 litros",d:"40 litros",e:"55 litros",ok:"a",exp:"300/30 = 500/x => x = 500*30/300 = 50."},
+  {id:"6012",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Regra de Tres",subtema:"Regra de tres simples inversa",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um trabalho e concluido por 8 operarios em 15 dias. Se 12 operarios forem usados, em quantos dias termina?",a:"10 dias",b:"12 dias",c:"9 dias",d:"8 dias",e:"11 dias",ok:"a",exp:"8 x 15 = 12 x d => d = 120/12 = 10."},
+  {id:"6013",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Regra de Tres",subtema:"Regra de tres composta",dif:"Dif\u00edcil",fonte:"Vestibular",ano:"2022",xp:20,enunciado:"4 maquinas produzem 400 pecas em 5 horas. Quantas pecas 6 maquinas produzem em 8 horas?",a:"960",b:"800",c:"1200",d:"720",e:"840",ok:"a",exp:"400/(4x5) = x/(6x8) => x = 400*48/20 = 960."},
+  {id:"6014",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Fracoes",subtema:"Operacoes com fracoes",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Quanto e 1/2 + 1/3?",a:"5/6",b:"2/5",c:"2/6",d:"1/5",e:"3/5",ok:"a",exp:"MMC(2,3)=6. 3/6 + 2/6 = 5/6."},
+  {id:"6015",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Fracoes",subtema:"Multiplicacao de fracoes",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"3/4 multiplicado por 8/9 e igual a:",a:"2/3",b:"1/2",c:"3/4",d:"5/6",e:"4/5",ok:"a",exp:"(3x8)/(4x9) = 24/36 = 2/3."},
+  {id:"6016",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Fracoes",subtema:"Fracao de um numero",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Qual e 3/5 de 40?",a:"24",b:"20",c:"30",d:"16",e:"28",ok:"a",exp:"3/5 * 40 = 120/5 = 24."},
+  {id:"6017",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Fracoes",subtema:"Fracao decimal",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A fracao 3/4 equivale a qual decimal?",a:"0,75",b:"0,60",c:"0,80",d:"0,50",e:"0,70",ok:"a",exp:"3/4 = 3 dividido por 4 = 0,75."},
+  {id:"6018",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Potenciacao",subtema:"Potencia de numero natural",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Qual e o valor de 2 elevado a 8?",a:"256",b:"128",c:"512",d:"64",e:"32",ok:"a",exp:"2^8 = 256 (2,4,8,16,32,64,128,256)."},
+  {id:"6019",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Potenciacao",subtema:"Produto de potencias de mesma base",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"2^3 x 2^4 e igual a:",a:"2^7",b:"2^12",c:"4^7",d:"2^6",e:"4^12",ok:"a",exp:"Produto de potencias de mesma base: soma os expoentes. 2^(3+4) = 2^7."},
+  {id:"6020",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Radiciacao",subtema:"Raiz quadrada",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Qual e a raiz quadrada de 196?",a:"14",b:"12",c:"16",d:"13",e:"15",ok:"a",exp:"14 x 14 = 196."},
+  {id:"6021",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Radiciacao",subtema:"Raiz cubica",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A raiz cubica de 125 e:",a:"5",b:"4",c:"6",d:"7",e:"3",ok:"a",exp:"5^3 = 125."},
+  {id:"6022",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 1 grau",subtema:"Equacao do 1 grau",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Qual o valor de x em: 3x + 6 = 21?",a:"5",b:"7",c:"4",d:"6",e:"3",ok:"a",exp:"3x = 21 - 6 = 15; x = 5."},
+  {id:"6023",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 1 grau",subtema:"Equacao com parenteses",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Resolva: 2(x - 3) = 4x - 14. O valor de x e:",a:"4",b:"5",c:"3",d:"6",e:"2",ok:"a",exp:"2x - 6 = 4x - 14 => -2x = -8 => x = 4."},
+  {id:"6024",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 1 grau",subtema:"Sistema de equacoes 1 grau",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Resolva o sistema: x + y = 10 e x - y = 2. O valor de x e:",a:"6",b:"4",c:"8",d:"5",e:"7",ok:"a",exp:"Somando: 2x = 12 => x = 6. Verificando: 6 + y = 10 => y = 4."},
+  {id:"6025",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 2 grau",subtema:"Formula de Bhaskara",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"As raizes de x^2 - 5x + 6 = 0 sao:",a:"2 e 3",b:"1 e 6",c:"-2 e -3",d:"3 e 4",e:"1 e 4",ok:"a",exp:"delta = 25 - 24 = 1. x = (5+-1)/2. x1=3, x2=2."},
+  {id:"6026",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 2 grau",subtema:"Soma e produto das raizes",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2022",xp:15,enunciado:"Na equacao x^2 - 7x + 12 = 0, a soma das raizes e:",a:"7",b:"12",c:"5",d:"3",e:"4",ok:"a",exp:"Pela relacao de Girard: soma das raizes = -b/a = 7/1 = 7."},
+  {id:"6027",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Equacoes 2 grau",subtema:"Discriminante",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A equacao x^2 - 4x + 5 = 0 tem:",a:"Nenhuma raiz real",b:"Duas raizes reais distintas",c:"Duas raizes reais iguais",d:"Uma raiz real",e:"Tres raizes reais",ok:"a",exp:"delta = 16 - 20 = -4 < 0. Sem raizes reais."},
+  {id:"6028",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Area do retangulo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um retangulo tem base 8 m e altura 5 m. Qual sua area?",a:"40 m2",b:"26 m2",c:"35 m2",d:"45 m2",e:"30 m2",ok:"a",exp:"Area = base x altura = 8 x 5 = 40 m2."},
+  {id:"6029",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Area do triangulo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um triangulo tem base 10 m e altura 6 m. Sua area e:",a:"30 m2",b:"60 m2",c:"25 m2",d:"40 m2",e:"20 m2",ok:"a",exp:"Area = (base x altura)/2 = (10 x 6)/2 = 30 m2."},
+  {id:"6030",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Perimetro do quadrado",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um quadrado tem lado 7 cm. Qual seu perimetro?",a:"28 cm",b:"14 cm",c:"49 cm",d:"21 cm",e:"35 cm",ok:"a",exp:"Perimetro = 4 x lado = 4 x 7 = 28 cm."},
+  {id:"6031",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Area do circulo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um circulo tem raio de 5 m. Sua area (use pi = 3,14) e aproximadamente:",a:"78,5 m2",b:"31,4 m2",c:"50,3 m2",d:"94,2 m2",e:"62,8 m2",ok:"a",exp:"Area = pi x r^2 = 3,14 x 25 = 78,5 m2."},
+  {id:"6032",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Espacial",subtema:"Volume do cubo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um cubo tem aresta de 3 cm. Qual seu volume?",a:"27 cm3",b:"9 cm3",c:"18 cm3",d:"54 cm3",e:"12 cm3",ok:"a",exp:"Volume = aresta^3 = 3^3 = 27 cm3."},
+  {id:"6033",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Espacial",subtema:"Volume do paralelepipedo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Uma caixa retangular mede 4 m x 3 m x 2 m. Qual seu volume?",a:"24 m3",b:"26 m3",c:"18 m3",d:"36 m3",e:"20 m3",ok:"a",exp:"V = comprimento x largura x altura = 4 x 3 x 2 = 24 m3."},
+  {id:"6034",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Espacial",subtema:"Volume do cilindro",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2022",xp:15,enunciado:"Um cilindro tem raio 3 cm e altura 10 cm. Seu volume (pi = 3,14) e:",a:"282,6 cm3",b:"94,2 cm3",c:"188,4 cm3",d:"314 cm3",e:"150 cm3",ok:"a",exp:"V = pi x r^2 x h = 3,14 x 9 x 10 = 282,6 cm3."},
+  {id:"6035",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Teorema de Pitagoras",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Em um triangulo retangulo, os catetos medem 3 cm e 4 cm. A hipotenusa mede:",a:"5 cm",b:"6 cm",c:"7 cm",d:"4,5 cm",e:"8 cm",ok:"a",exp:"h^2 = 3^2 + 4^2 = 9 + 16 = 25 => h = 5. (Triangulo 3-4-5)"},
+  {id:"6036",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Geometria Plana",subtema:"Teorema de Pitagoras",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um retangulo mede 6 m por 8 m. Qual e o comprimento de sua diagonal?",a:"10 m",b:"12 m",c:"14 m",d:"7 m",e:"9 m",ok:"a",exp:"d^2 = 6^2 + 8^2 = 36 + 64 = 100 => d = 10 m."},
+  {id:"6037",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Semelhanca de triangulos",subtema:"Fator de semelhanca",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Dois triangulos semelhantes tem lados correspondentes de 4 cm e 6 cm. A razao de semelhanca e:",a:"2/3",b:"1/2",c:"3/4",d:"4/5",e:"1/3",ok:"a",exp:"Razao de semelhanca = 4/6 = 2/3."},
+  {id:"6038",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Semelhanca de triangulos",subtema:"Criterios de semelhanca",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Dois triangulos sao semelhantes (AA) quando:",a:"Dois angulos de um sao iguais a dois angulos do outro",b:"Os tres lados sao iguais",c:"Os tres angulos sao iguais",d:"Dois lados e o angulo entre eles sao iguais",e:"Apenas um angulo e igual",ok:"a",exp:"O criterio AA (angulo-angulo) garante semelhanca, pois o terceiro angulo e determinado."},
+  {id:"6039",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Trigonometria",subtema:"Seno cosseno tangente",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Em um triangulo retangulo, o cateto oposto mede 3 cm e a hipotenusa mede 5 cm. O seno do angulo oposto a esse cateto e:",a:"3/5",b:"4/5",c:"3/4",d:"5/3",e:"4/3",ok:"a",exp:"seno = cateto oposto / hipotenusa = 3/5."},
+  {id:"6040",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Trigonometria",subtema:"Angulos notaveis",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Qual e o valor do seno de 30 graus?",a:"1/2",b:"raiz de 3 dividido por 2",c:"raiz de 2 dividido por 2",d:"1",e:"raiz de 3 dividido por 3",ok:"a",exp:"sen 30 graus = 1/2. Esse e um angulo notavel essencial."},
+  {id:"6041",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Trigonometria",subtema:"Tangente de angulo",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A tangente de 45 graus e igual a:",a:"1",b:"0",c:"raiz de 3",d:"1/2",e:"raiz de 2",ok:"a",exp:"tg 45 = sen 45 / cos 45 = (raiz 2 / 2) / (raiz 2 / 2) = 1."},
+  {id:"6101",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Estatistica",subtema:"Media aritmetica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"As notas de um aluno foram 6, 7, 8 e 9. Qual e a media aritmetica?",a:"7,5",b:"7",c:"8",d:"7,75",e:"8,5",ok:"a",exp:"Media = (6+7+8+9)/4 = 30/4 = 7,5."},
+  {id:"6102",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Estatistica",subtema:"Mediana",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Os dados 3, 5, 7, 9, 11 estao em ordem crescente. Qual e a mediana?",a:"7",b:"5",c:"9",d:"6",e:"8",ok:"a",exp:"Mediana e o valor central: 3 5 [7] 9 11 => mediana = 7."},
+  {id:"6103",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Estatistica",subtema:"Moda",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"No conjunto 2, 3, 3, 4, 5, 5, 5, 6, a moda e:",a:"5",b:"3",c:"4",d:"6",e:"2",ok:"a",exp:"Moda e o valor que mais se repete: 5 aparece 3 vezes."},
+  {id:"6104",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Estatistica",subtema:"Interpretacao de graficos",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um grafico de barras mostra vendas mensais: Jan=100, Fev=120, Mar=80. Qual mes teve menor venda?",a:"Marco",b:"Janeiro",c:"Fevereiro",d:"Todos iguais",e:"Nao e possivel determinar",ok:"a",exp:"Marco teve 80 unidades, o menor valor entre os tres meses."},
+  {id:"6105",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Probabilidade",subtema:"Probabilidade simples",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Lancando um dado justo (6 faces), qual a probabilidade de sair numero par?",a:"1/2",b:"1/3",c:"2/3",d:"1/6",e:"3/4",ok:"a",exp:"Pares: 2, 4, 6 (3 casos). Total: 6. P = 3/6 = 1/2."},
+  {id:"6106",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Probabilidade",subtema:"Probabilidade de evento complementar",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A probabilidade de chover amanha e 0,3. A probabilidade de NAO chover e:",a:"0,7",b:"0,3",c:"0,5",d:"0,6",e:"0,4",ok:"a",exp:"P(nao chover) = 1 - P(chover) = 1 - 0,3 = 0,7."},
+  {id:"6107",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Analise Combinatoria",subtema:"Fatorial",dif:"F\u00e1cil",fonte:"ENEM",ano:"2022",xp:10,enunciado:"Quanto e 5! (5 fatorial)?",a:"120",b:"60",c:"24",d:"100",e:"20",ok:"a",exp:"5! = 5 x 4 x 3 x 2 x 1 = 120."},
+  {id:"6108",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Analise Combinatoria",subtema:"Arranjo simples",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"De quantas maneiras podemos escolher 2 pessoas em uma fila com ordem importando de um grupo de 4?",a:"12",b:"6",c:"8",d:"24",e:"10",ok:"a",exp:"A(4,2) = 4!/(4-2)! = 4!/2! = 12."},
+  {id:"6109",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Analise Combinatoria",subtema:"Combinacao simples",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"De quantas formas podemos escolher 2 alunos de um grupo de 5 (sem importar a ordem)?",a:"10",b:"20",c:"15",d:"5",e:"25",ok:"a",exp:"C(5,2) = 5!/(2! x 3!) = 10."},
+  {id:"6110",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Funcoes",subtema:"Funcao do 1 grau",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Dada f(x) = 2x + 3, qual e f(4)?",a:"11",b:"9",c:"10",d:"12",e:"8",ok:"a",exp:"f(4) = 2(4) + 3 = 8 + 3 = 11."},
+  {id:"6111",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Funcoes",subtema:"Zero da funcao do 1 grau",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O zero da funcao f(x) = 3x - 9 e:",a:"3",b:"9",c:"-3",d:"6",e:"-9",ok:"a",exp:"3x - 9 = 0 => 3x = 9 => x = 3."},
+  {id:"6112",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Funcoes",subtema:"Funcao do 2 grau - vertice",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A funcao f(x) = x^2 - 4x + 3 tem vertice em x =",a:"2",b:"3",c:"1",d:"-2",e:"4",ok:"a",exp:"x_v = -b/(2a) = -(-4)/(2x1) = 4/2 = 2."},
+  {id:"6113",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Funcoes",subtema:"Funcao exponencial",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"O valor de f(3) para f(x) = 2^x e:",a:"8",b:"6",c:"9",d:"16",e:"4",ok:"a",exp:"f(3) = 2^3 = 8."},
+  {id:"6114",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Funcoes",subtema:"Funcao logaritmica",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2022",xp:15,enunciado:"O valor de log base 2 de 32 e:",a:"5",b:"4",c:"6",d:"3",e:"7",ok:"a",exp:"2^5 = 32, logo log base 2 de 32 = 5."},
+  {id:"6115",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juro simples",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um capital de R$ 2.000,00 e aplicado a juros simples de 3% ao mes por 4 meses. O juro total e:",a:"R$ 240,00",b:"R$ 120,00",c:"R$ 200,00",d:"R$ 180,00",e:"R$ 300,00",ok:"a",exp:"J = C x i x t = 2000 x 0,03 x 4 = 240."},
+  {id:"6116",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Montante juro simples",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Capital de R$ 1.000,00 a 5% ao mes por 3 meses (juro simples). O montante e:",a:"R$ 1.150,00",b:"R$ 1.100,00",c:"R$ 1.050,00",d:"R$ 1.200,00",e:"R$ 1.250,00",ok:"a",exp:"J = 1000 x 0,05 x 3 = 150. M = 1000 + 150 = 1.150."},
+  {id:"6117",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Juro composto",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um capital de R$ 1.000,00 e aplicado a juros compostos de 10% ao periodo por 2 periodos. O montante e:",a:"R$ 1.210,00",b:"R$ 1.200,00",c:"R$ 1.100,00",d:"R$ 1.150,00",e:"R$ 1.250,00",ok:"a",exp:"M = C x (1+i)^t = 1000 x 1,1^2 = 1000 x 1,21 = 1.210."},
+  {id:"6118",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Desconto comercial",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Um titulo de R$ 500,00 e descontado a 5% ao mes por 2 meses (desconto simples comercial). O desconto e:",a:"R$ 50,00",b:"R$ 25,00",c:"R$ 100,00",d:"R$ 75,00",e:"R$ 40,00",ok:"a",exp:"D = N x i x t = 500 x 0,05 x 2 = 50."},
+  {id:"6119",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Taxa equivalente",dif:"Dif\u00edcil",fonte:"Vestibular",ano:"2022",xp:20,enunciado:"Uma taxa de 1% ao mes e equivalente, em regime de juros compostos, a aproximadamente qual taxa anual?",a:"12,68% ao ano",b:"12% ao ano",c:"15% ao ano",d:"10% ao ano",e:"13% ao ano",ok:"a",exp:"(1,01)^12 - 1 = 1,1268 - 1 = 12,68% ao ano."},
+  {id:"6120",tipo:'multipla',disc:"Matem\u00e1tica",tema:"Matematica Financeira",subtema:"Inflacao e poder de compra",dif:"M\u00e9dio",fonte:"ENEM",ano:"2023",xp:15,enunciado:"Se a inflacao anual e de 10% e seu salario subiu 5%, seu poder de compra:",a:"Diminuiu",b:"Aumentou",c:"Ficou igual",d:"Dobrou",e:"Nao e possivel calcular",ok:"a",exp:"O aumento real foi negativo: 1,05/1,10 - 1 = -4,5%. O poder de compra caiu."},
+  {id:"6121",tipo:'multipla',disc:"F\u00edsica",tema:"Cinematica",subtema:"Velocidade media",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um carro percorre 240 km em 3 horas. Qual e sua velocidade media?",a:"80 km/h",b:"60 km/h",c:"90 km/h",d:"120 km/h",e:"100 km/h",ok:"a",exp:"Vm = distancia/tempo = 240/3 = 80 km/h."},
+  {id:"6122",tipo:'multipla',disc:"F\u00edsica",tema:"Cinematica",subtema:"Movimento uniforme",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Em movimento uniforme, a aceleracao e:",a:"Nula (zero)",b:"Constante e positiva",c:"Variavel",d:"Negativa",e:"Infinita",ok:"a",exp:"No MU a velocidade e constante, portanto a aceleracao e nula."},
+  {id:"6123",tipo:'multipla',disc:"F\u00edsica",tema:"Cinematica",subtema:"Queda livre",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um objeto e largado do repouso e cai em queda livre (g = 10 m/s2) por 3 s. Qual e sua velocidade final?",a:"30 m/s",b:"20 m/s",c:"15 m/s",d:"10 m/s",e:"25 m/s",ok:"a",exp:"v = g x t = 10 x 3 = 30 m/s."},
+  {id:"6124",tipo:'multipla',disc:"F\u00edsica",tema:"Cinematica",subtema:"Lancamento horizontal",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"No lancamento horizontal, o componente horizontal da velocidade:",a:"Permanece constante",b:"Aumenta linearmente",c:"E zero",d:"Diminui",e:"Varia com a massa",ok:"a",exp:"Na horizontal nao ha forca (desprezando o ar), entao a velocidade horizontal e constante."},
+  {id:"6125",tipo:'multipla',disc:"F\u00edsica",tema:"Dinamica",subtema:"1a Lei de Newton",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Primeira Lei de Newton, chamada lei da inercia, afirma que:",a:"Um objeto em repouso ou em MU permanece assim se a forca resultante for nula",b:"Forca e igual a massa vezes aceleracao",c:"Acao e reacao sao forcas de mesma intensidade e sentidos opostos",d:"A velocidade e sempre constante",e:"A aceleracao e inversamente proporcional a forca",ok:"a",exp:"1a Lei: principio da inercia. Um corpo tende a manter seu estado de repouso ou MRU se a resultante for nula."},
+  {id:"6126",tipo:'multipla',disc:"F\u00edsica",tema:"Dinamica",subtema:"2a Lei de Newton",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um objeto de 5 kg sofre uma forca resultante de 20 N. Qual e sua aceleracao?",a:"4 m/s2",b:"2 m/s2",c:"10 m/s2",d:"8 m/s2",e:"5 m/s2",ok:"a",exp:"F = m x a => a = F/m = 20/5 = 4 m/s2."},
+  {id:"6127",tipo:'multipla',disc:"F\u00edsica",tema:"Dinamica",subtema:"3a Lei de Newton",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"De acordo com a 3a Lei de Newton (acao e reacao):",a:"Se A exerce forca sobre B, entao B exerce forca igual e oposta sobre A",b:"Duas forcas iguais se cancelam sempre",c:"A forca maior vence",d:"A reacao e sempre menor que a acao",e:"As forcas atuam no mesmo ponto",ok:"a",exp:"3a Lei: para toda acao ha uma reacao de mesma intensidade, mesma direcao e sentido oposto, em corpos diferentes."},
+  {id:"6128",tipo:'multipla',disc:"F\u00edsica",tema:"Trabalho e Energia",subtema:"Trabalho",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Uma forca de 10 N desloca um objeto 5 m na mesma direcao da forca. O trabalho realizado e:",a:"50 J",b:"15 J",c:"2 J",d:"100 J",e:"25 J",ok:"a",exp:"T = F x d = 10 x 5 = 50 J."},
+  {id:"6129",tipo:'multipla',disc:"F\u00edsica",tema:"Trabalho e Energia",subtema:"Energia cinetica",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um objeto de 2 kg se move a 10 m/s. Sua energia cinetica e:",a:"100 J",b:"20 J",c:"200 J",d:"50 J",e:"40 J",ok:"a",exp:"Ec = m v^2 / 2 = 2 x 100 / 2 = 100 J."},
+  {id:"6130",tipo:'multipla',disc:"F\u00edsica",tema:"Trabalho e Energia",subtema:"Energia potencial gravitacional",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Um objeto de 3 kg esta a 10 m de altura (g=10 m/s2). Sua energia potencial gravitacional e:",a:"300 J",b:"30 J",c:"150 J",d:"600 J",e:"100 J",ok:"a",exp:"Ep = m x g x h = 3 x 10 x 10 = 300 J."},
+  {id:"6131",tipo:'multipla',disc:"F\u00edsica",tema:"Hidrostatica",subtema:"Pressao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Uma forca de 100 N e aplicada uniformemente sobre uma area de 0,5 m2. A pressao e:",a:"200 Pa",b:"50 Pa",c:"100 Pa",d:"500 Pa",e:"150 Pa",ok:"a",exp:"P = F/A = 100/0,5 = 200 Pa."},
+  {id:"6132",tipo:'multipla',disc:"F\u00edsica",tema:"Hidrostatica",subtema:"Empuxo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O principio de Arquimedes afirma que um corpo imerso em fluido recebe um empuxo igual a:",a:"O peso do fluido deslocado pelo corpo",b:"O peso do proprio corpo",c:"O volume do corpo",d:"A pressao no fundo do liquido",e:"A massa do fluido",ok:"a",exp:"Principio de Arquimedes: E = d_fluido x V_imerso x g (peso do fluido deslocado)."},
+  {id:"6133",tipo:'multipla',disc:"F\u00edsica",tema:"Termologia",subtema:"Temperatura e escalas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A temperatura de 100 graus Celsius, convertida para Kelvin, e:",a:"373 K",b:"273 K",c:"100 K",d:"473 K",e:"173 K",ok:"a",exp:"K = C + 273 = 100 + 273 = 373 K."},
+  {id:"6134",tipo:'multipla',disc:"F\u00edsica",tema:"Termologia",subtema:"Dilatacao termica",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A dilatacao linear de um solido depende principalmente de:",a:"O comprimento inicial, o coeficiente de dilatacao e a variacao de temperatura",b:"Apenas da massa do solido",c:"Apenas da variacao de temperatura",d:"Da cor e da textura do material",e:"Da pressao sobre o solido",ok:"a",exp:"DeltaL = L0 x alfa x DeltaT. Os tres fatores determinam a dilatacao."},
+  {id:"6135",tipo:'multipla',disc:"F\u00edsica",tema:"Ondulatoria",subtema:"Velocidade de onda",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Uma onda tem frequencia de 5 Hz e comprimento de onda de 4 m. Qual e sua velocidade?",a:"20 m/s",b:"1,25 m/s",c:"9 m/s",d:"25 m/s",e:"15 m/s",ok:"a",exp:"v = lambda x f = 4 x 5 = 20 m/s."},
+  {id:"6136",tipo:'multipla',disc:"F\u00edsica",tema:"Ondulatoria",subtema:"Classificacao das ondas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O som e um exemplo de onda:",a:"Longitudinal e mecanica",b:"Transversal e eletromagnetica",c:"Longitudinal e eletromagnetica",d:"Transversal e mecanica",e:"Eletromagnetica e luminosa",ok:"a",exp:"O som e uma onda mecanica (precisa de meio material) e longitudinal (vibracao paralela a propagacao)."},
+  {id:"6137",tipo:'multipla',disc:"F\u00edsica",tema:"Optica",subtema:"Reflexao da luz",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A lei de reflexao afirma que o angulo de incidencia e igual ao:",a:"Angulo de reflexao",b:"Angulo de refracao",c:"Angulo critico",d:"Angulo de polarizacao",e:"Angulo de difusao",ok:"a",exp:"1a lei da reflexao: angulo de incidencia = angulo de reflexao (em relacao a normal)."},
+  {id:"6138",tipo:'multipla',disc:"F\u00edsica",tema:"Optica",subtema:"Refracao da luz",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Quando a luz passa do ar para a agua, ela:",a:"Reduz a velocidade e pode mudar de direcao",b:"Aumenta a velocidade",c:"Nao muda de direcao",d:"Perde sua frequencia",e:"Aumenta o comprimento de onda",ok:"a",exp:"Na refracao, ao mudar de meio, a velocidade da luz muda, podendo alterar sua direcao."},
+  {id:"6139",tipo:'multipla',disc:"F\u00edsica",tema:"Eletrostatica",subtema:"Lei de Coulomb",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A lei de Coulomb afirma que a forca entre cargas eletricas e:",a:"Proporcional ao produto das cargas e inversamente proporcional ao quadrado da distancia",b:"Proporcional ao quadrado das cargas",c:"Inversamente proporcional ao produto das cargas",d:"Sempre atrativa",e:"Independente da distancia",ok:"a",exp:"F = k x q1 x q2 / d^2. Lei de Coulomb: F proporcional a q1xq2 e a 1/d^2."},
+  {id:"6140",tipo:'multipla',disc:"F\u00edsica",tema:"Eletrostatica",subtema:"Tipos de cargas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Cargas eletricas de mesmo sinal se:",a:"Repelem",b:"Atraem",c:"Se anulam",d:"Formam neutrons",e:"Nao interagem",ok:"a",exp:"Cargas iguais se repelem; cargas opostas se atraem."},
+  {id:"6141",tipo:'multipla',disc:"F\u00edsica",tema:"Eletrodinamica",subtema:"Lei de Ohm",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um resistor de 10 Ohms recebe uma tensao de 20 V. A corrente que o percorre e:",a:"2 A",b:"10 A",c:"0,5 A",d:"200 A",e:"4 A",ok:"a",exp:"1a Lei de Ohm: I = V/R = 20/10 = 2 A."},
+  {id:"6142",tipo:'multipla',disc:"F\u00edsica",tema:"Circuitos Eletricos",subtema:"Resistores em serie",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Dois resistores de 4 Ohms e 6 Ohms estao em serie. A resistencia equivalente e:",a:"10 Ohms",b:"2,4 Ohms",c:"5 Ohms",d:"24 Ohms",e:"8 Ohms",ok:"a",exp:"Em serie, Req = R1 + R2 = 4 + 6 = 10 Ohms."},
+  {id:"6143",tipo:'multipla',disc:"F\u00edsica",tema:"Circuitos Eletricos",subtema:"Resistores em paralelo",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Dois resistores de 6 Ohms em paralelo. A resistencia equivalente e:",a:"3 Ohms",b:"12 Ohms",c:"6 Ohms",d:"9 Ohms",e:"4 Ohms",ok:"a",exp:"Em paralelo com resistores iguais: Req = R/n = 6/2 = 3 Ohms."},
+  {id:"6144",tipo:'multipla',disc:"F\u00edsica",tema:"Dinamica",subtema:"Quantidade de movimento",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Um objeto de 4 kg se move a 5 m/s. Sua quantidade de movimento (momento linear) e:",a:"20 kg.m/s",b:"9 kg.m/s",c:"1,25 kg.m/s",d:"40 kg.m/s",e:"10 kg.m/s",ok:"a",exp:"p = m x v = 4 x 5 = 20 kg.m/s."},
+  {id:"6145",tipo:'multipla',disc:"F\u00edsica",tema:"Dinamica",subtema:"Conservacao do momento",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2022",xp:15,enunciado:"O principio da conservacao da quantidade de movimento afirma que em um sistema isolado:",a:"O momento total antes e apos a colisao e igual",b:"A energia cinetica total se conserva sempre",c:"O momento aumenta na colisao",d:"As velocidades sao sempre iguais apos o choque",e:"As massas se conservam separadamente",ok:"a",exp:"Em sistemas isolados (sem forcas externas), o momento total se conserva: p_antes = p_depois."},
+  {id:"6201",tipo:'multipla',disc:"Qu\u00edmica",tema:"Estrutura Atomica",subtema:"Particulas subatomicas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O nucleo atomico e composto por:",a:"Protons e neutrons",b:"Protons e eletrons",c:"Eletrons e neutrons",d:"Apenas protons",e:"Apenas eletrons",ok:"a",exp:"O nucleo contem protons (carga +) e neutrons (neutros). Os eletrons orbitam ao redor do nucleo."},
+  {id:"6202",tipo:'multipla',disc:"Qu\u00edmica",tema:"Estrutura Atomica",subtema:"Numero atomico e massa",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O numero atomico (Z) de um elemento e igual ao numero de:",a:"Protons (e igual ao numero de eletrons no atomo neutro)",b:"Neutrons",c:"Eletrons mais neutrons",d:"Protons mais neutrons",e:"Nucleons",ok:"a",exp:"Z = numero de protons = numero de eletrons (no atomo neutro). A = Z + N (neutrons)."},
+  {id:"6203",tipo:'multipla',disc:"Qu\u00edmica",tema:"Estrutura Atomica",subtema:"Isotopos",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Isotopos sao atomos do mesmo elemento que diferem no numero de:",a:"Neutrons",b:"Protons",c:"Eletrons",d:"Protons e eletrons",e:"Protons e neutrons",ok:"a",exp:"Isotopos: mesmo Z (mesmo elemento), diferente N (neutrons), portanto diferente massa atomica."},
+  {id:"6204",tipo:'multipla',disc:"Qu\u00edmica",tema:"Ligacoes Quimicas",subtema:"Ligacao ionica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A ligacao ionica ocorre entre:",a:"Metal e nao metal (transferencia de eletrons)",b:"Dois nao metais (compartilhamento)",c:"Dois metais",d:"Metal e gas nobre",e:"Dois gases nobres",ok:"a",exp:"Na ligacao ionica, um metal perde eletrons (cation) e um nao metal ganha (anion), formando ions de cargas opostas."},
+  {id:"6205",tipo:'multipla',disc:"Qu\u00edmica",tema:"Ligacoes Quimicas",subtema:"Ligacao covalente",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A ligacao covalente envolve:",a:"Compartilhamento de pares de eletrons entre nao metais",b:"Transferencia total de eletrons",c:"Nuvem eletronica livre",d:"Apenas metais",e:"Ions positivos",ok:"a",exp:"Na ligacao covalente, atomos compartilham pares de eletrons para completar o octeto."},
+  {id:"6206",tipo:'multipla',disc:"Qu\u00edmica",tema:"Ligacoes Quimicas",subtema:"Ligacao metalica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A ligacao metalica explica propriedades como condutividade eletrica e maleabilidade porque:",a:"Os eletrons livres circulam entre os captions metalicos",b:"Os atomos compartilham eletrons em pares definidos",c:"Ions se repelem",d:"Os eletrons estao fixos nos atomos",e:"Ha transferencia completa de eletrons",ok:"a",exp:"Nos metais, eletrons de valencia formam um mar de eletrons livres, conferindo condutividade e maleabilidade."},
+  {id:"6207",tipo:'multipla',disc:"Qu\u00edmica",tema:"Funcoes Inorganicas",subtema:"Acidos",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"De acordo com a teoria de Arrhenius, um acido e uma substancia que, em agua, libera ions:",a:"H+ (hidrogenio)",b:"OH-",c:"Na+",d:"Cl-",e:"O2-",ok:"a",exp:"Segundo Arrhenius, acido libera H+ em agua. Exemplo: HCl -> H+ + Cl-."},
+  {id:"6208",tipo:'multipla',disc:"Qu\u00edmica",tema:"Funcoes Inorganicas",subtema:"Bases",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Uma base, segundo Arrhenius, e uma substancia que em agua libera ions:",a:"OH- (hidroxila)",b:"H+",c:"SO4 2-",d:"Na+",e:"Ca2+",ok:"a",exp:"Segundo Arrhenius, base libera OH- em agua. Exemplo: NaOH -> Na+ + OH-."},
+  {id:"6209",tipo:'multipla',disc:"Qu\u00edmica",tema:"Funcoes Inorganicas",subtema:"pH",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Uma solucao com pH 4 e considerada:",a:"Acida",b:"Basica",c:"Neutra",d:"Alcalina",e:"Indeterminada",ok:"a",exp:"pH < 7: acida. pH = 7: neutra. pH > 7: basica. pH 4 e acida."},
+  {id:"6210",tipo:'multipla',disc:"Qu\u00edmica",tema:"Estequiometria",subtema:"Mol e numero de Avogadro",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um mol de qualquer substancia contem aproximadamente:",a:"6,02 x 10^23 entidades (numero de Avogadro)",b:"12 gramas",c:"22,4 gramas",d:"1 grama",e:"1000 entidades",ok:"a",exp:"1 mol = 6,02 x 10^23 particulas (atomo, molec, ions), independente da substancia."},
+  {id:"6211",tipo:'multipla',disc:"Qu\u00edmica",tema:"Estequiometria",subtema:"Calculo estequiometrico",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Na reacao 2H2 + O2 -> 2H2O, quantos moles de H2O sao produzidos a partir de 4 moles de H2?",a:"4 moles",b:"2 moles",c:"8 moles",d:"1 mol",e:"6 moles",ok:"a",exp:"Proporcao: 2 H2 : 2 H2O. Para 4 H2: 4 H2O."},
+  {id:"6212",tipo:'multipla',disc:"Qu\u00edmica",tema:"Solucoes",subtema:"Concentracao molar",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Dissolve-se 1 mol de NaCl em agua ate completar 1 litro. A concentracao molar e:",a:"1 mol/L",b:"0,5 mol/L",c:"2 mol/L",d:"1,5 mol/L",e:"0,1 mol/L",ok:"a",exp:"Molaridade (M) = n moles / volume em litros = 1/1 = 1 mol/L."},
+  {id:"6213",tipo:'multipla',disc:"Qu\u00edmica",tema:"Solucoes",subtema:"Solubilidade",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Uma solucao saturada e aquela que:",a:"Nao consegue dissolver mais soluto a determinada temperatura",b:"Tem menos soluto que o maximo possivel",c:"Esta em ebulicao",d:"Tem pH neutro",e:"Contem apenas gas dissolvido",ok:"a",exp:"Solucao saturada: contendo a quantidade maxima de soluto possivel a dada temperatura."},
+  {id:"6214",tipo:'multipla',disc:"Qu\u00edmica",tema:"Termoquimica",subtema:"Reacao exotermica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Uma reacao exotermica e aquela que:",a:"Libera calor para o ambiente (delta H < 0)",b:"Absorve calor do ambiente (delta H > 0)",c:"Nao envolve variacao de energia",d:"Ocorre so em altas temperaturas",e:"Produz frio",ok:"a",exp:"Exotermica: libera energia (deltaH < 0). Endotermica: absorve (deltaH > 0)."},
+  {id:"6215",tipo:'multipla',disc:"Qu\u00edmica",tema:"Termoquimica",subtema:"Lei de Hess",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"A Lei de Hess afirma que a variacao de entalpia de uma reacao:",a:"Independe do caminho reacional, dependendo apenas do estado inicial e final",b:"Depende do catalisador utilizado",c:"E sempre negativa",d:"Depende da velocidade da reacao",e:"Muda conforme a pressao",ok:"a",exp:"Lei de Hess: DeltaH total e igual a soma dos DeltaH das etapas, independente do caminho."},
+  {id:"6216",tipo:'multipla',disc:"Qu\u00edmica",tema:"Cinetica Quimica",subtema:"Fatores que influenciam a velocidade",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Aumentar a temperatura de uma reacao quimica normalmente:",a:"Aumenta a velocidade da reacao",b:"Reduz a velocidade",c:"Nao afeta a velocidade",d:"Para a reacao",e:"Aumenta o pH",ok:"a",exp:"O aumento de temperatura aumenta a energia cinetica das particulas, aumentando colisoes efetivas."},
+  {id:"6217",tipo:'multipla',disc:"Qu\u00edmica",tema:"Cinetica Quimica",subtema:"Catalisador",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um catalisador aumenta a velocidade de uma reacao porque:",a:"Diminui a energia de ativacao necessaria",b:"Fornece mais energia para as moleculas",c:"Aumenta a concentracao dos reagentes",d:"Aumenta a temperatura do sistema",e:"Altera os produtos da reacao",ok:"a",exp:"Catalisador abre um caminho alternativo com menor energia de ativacao, acelerando a reacao sem ser consumido."},
+  {id:"6218",tipo:'multipla',disc:"Qu\u00edmica",tema:"Equilibrio Quimico",subtema:"Principio de Le Chatelier",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Principio de Le Chatelier afirma que, ao se pertrubar um equilibrio, o sistema:",a:"Reage de forma a minimizar a perturbacao e atingir novo equilibrio",b:"Para a reacao",c:"Acelera sempre para a direita",d:"Permanece inalterado",e:"Aumenta a temperatura sempre",ok:"a",exp:"Le Chatelier: um sistema em equilibrio ao sofrer perturbacao (pressao, temp, conc) evolui para compensar."},
+  {id:"6219",tipo:'multipla',disc:"Qu\u00edmica",tema:"Eletroquimica",subtema:"Pilha galvanica",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2023",xp:15,enunciado:"Em uma pilha galvanica (eletroquimica), o anodo e o polo onde ocorre:",a:"Oxidacao (perda de eletrons)",b:"Reducao (ganho de eletrons)",c:"Producao de gas hidrogenio",d:"Deposicao de metal",e:"Nenhuma reacao",ok:"a",exp:"Mnemonica: AnOx (Anodo-Oxidacao) e RedCat (Reducao-Catodo)."},
+  {id:"6220",tipo:'multipla',disc:"Qu\u00edmica",tema:"Eletroquimica",subtema:"Eletrolicidade",dif:"F\u00e1cil",fonte:"ENEM",ano:"2022",xp:10,enunciado:"A corrosao de metais e um processo de:",a:"Oxidacao",b:"Reducao",c:"Neutralizacao",d:"Sintese",e:"Decomposicao",ok:"a",exp:"Corrosao e a oxidacao espontanea do metal pelo ambiente, principalmente pelo oxigenio e agua."},
+  {id:"6221",tipo:'multipla',disc:"Qu\u00edmica",tema:"Quimica Organica",subtema:"Hidrocarb - funcoes organicas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Os alcanos sao hidrocarbonetos caracterizados por:",a:"Possuirem apenas ligacoes simples entre os carbonos (C-C)",b:"Terem uma ligacao dupla",c:"Terem ligacao tripla",d:"Conterem nitrogenio",e:"Serem aromaticos",ok:"a",exp:"Alcanos: CnH(2n+2), apenas ligacoes simples. Sao saturados. Ex: metano, etano, propano."},
+  {id:"6222",tipo:'multipla',disc:"Qu\u00edmica",tema:"Quimica Organica",subtema:"Isomeria",dif:"M\u00e9dio",fonte:"Vestibular",ano:"2022",xp:15,enunciado:"Isomeros sao compostos que possuem:",a:"A mesma formula molecular mas estruturas diferentes",b:"A mesma estrutura e formulas iguais",c:"Formulas moleculares diferentes",d:"Os mesmos pontos de fusao",e:"Os mesmos nomes IUPAC",ok:"a",exp:"Isomeros: mesma formula molecular (ex: C2H6O), mas estruturas e propriedades diferentes."},
+  {id:"6223",tipo:'multipla',disc:"Qu\u00edmica",tema:"Polimeros",subtema:"Polimeros sinteticos",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O plastico e formado por longas cadeias de moleculas chamadas:",a:"Polimeros",b:"Monomeros",c:"Isomeros",d:"Catalisadores",e:"Eletrolitons",ok:"a",exp:"Polimeros sao macromoleculas formadas por repeticao de monomeros. Plasticos sao polimeros sinteticos."},
+  {id:"6224",tipo:'multipla',disc:"Qu\u00edmica",tema:"Quimica Ambiental",subtema:"Chuva acida",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A chuva acida e causada principalmente pelas emissoes de:",a:"SO2 e NOx que formam acidos ao reagirem com a agua da chuva",b:"CO2 e metano",c:"Gas nobre e vapor d agua",d:"Oxigenio e nitrogenio",e:"CFC e ozonio",ok:"a",exp:"SO2 (queima de combustiveis) e NOx formam H2SO4 e HNO3 na atmosfera, causando chuva acida."},
+  {id:"6225",tipo:'multipla',disc:"Qu\u00edmica",tema:"Quimica Ambiental",subtema:"Camada de ozonio",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A destruicao da camada de ozonio e causada principalmente pelo gas:",a:"CFC (clorofluorcarbono)",b:"CO2",c:"SO2",d:"Metano",e:"Vapor d agua",ok:"a",exp:"O CFC libera cloro que catalisa a decomposicao do ozonio (O3) na estratosfera."},
+  {id:"6226",tipo:'multipla',disc:"Biologia",tema:"Citologia",subtema:"Celula procariontica e eucariontica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A principal diferenca entre celulas procarionticas e eucarionticas e:",a:"As eucarionticas possuem nucleo definido por membrana e as procarionticas nao",b:"As procarionticas sao maiores",c:"As eucarionticas nao possuem DNA",d:"As procarionticas possuem mitocondrias",e:"Ambas possuem nucleo definido",ok:"a",exp:"Procarionte: sem nucleo envolto por membrana (bacteria). Eucarionte: com nucleo verdadeiro."},
+  {id:"6227",tipo:'multipla',disc:"Biologia",tema:"Citologia",subtema:"Membrana plasmatica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A membrana plasmatica e composta principalmente por:",a:"Bicamada fosfolipidica com proteinas inseridas",b:"Polissacarideos e lipidios",c:"DNA e proteinas",d:"Celulose e lignina",e:"Calda de silica",ok:"a",exp:"Modelo do mosaico fluido: bicamada de fosfolipidios com proteinas perifericas e integrais."},
+  {id:"6228",tipo:'multipla',disc:"Biologia",tema:"Citologia",subtema:"Mitocondria",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A mitocondria e conhecida como a usina de energia da celula porque:",a:"Realiza a respiracao celular e produz ATP",b:"Faz a fotossintese",c:"Sintetiza proteinas",d:"Armazena DNA nuclear",e:"Forma o citoesqueleto",ok:"a",exp:"A mitocondria realiza a respiracao aerobica, produzindo ATP (energia quimica) a partir de glicose e O2."},
+  {id:"6229",tipo:'multipla',disc:"Biologia",tema:"Bioquimica",subtema:"Proteinas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"As proteinas sao formadas por unidades basicas chamadas:",a:"Aminoacidos",b:"Glicerol",c:"Nucleotideos",d:"Glicose",e:"Acidos graxos",ok:"a",exp:"Proteinas = cadeias de aminoacidos ligados por ligacoes peptidicas. Existem 20 aminoacidos essenciais."},
+  {id:"6230",tipo:'multipla',disc:"Biologia",tema:"Bioquimica",subtema:"DNA e RNA",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O DNA e composto por nucleotideos que contem as bases nitrogenadas:",a:"Adenina, Timina, Guanina e Citosina",b:"Adenina, Uracila, Guanina e Citosina",c:"Glicose, Fosfato, Adenina e Guanina",d:"Aminoacidos e bases nitrogenadas",e:"Ribose, Uracila e Adenina",ok:"a",exp:"DNA: A, T, G, C (Timina e exclusiva do DNA). RNA: A, U, G, C (Uracila no lugar de Timina)."},
+  {id:"6231",tipo:'multipla',disc:"Biologia",tema:"Genetica",subtema:"1a Lei de Mendel",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A Primeira Lei de Mendel (segregacao) afirma que:",a:"Os alelos de um par se segregam na formacao dos gametas",b:"Genes de cromossomos diferentes se distribuem de forma independente",c:"O alelo dominante sempre aparece no fenot.",d:"Todos os filhos F1 sao identicos",e:"O DNA e transmitido apenas pela mae",ok:"a",exp:"1a Lei: cada individuo diploid. tem dois alelos para cada gene, que se separam na meiose (gametas haploides)."},
+  {id:"6232",tipo:'multipla',disc:"Biologia",tema:"Genetica",subtema:"Cruzamento Mendeliano",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"No cruzamento entre dois individuos heterozigotos Aa x Aa, a proporcao fenotipica esperada e:",a:"3 dominantes para 1 recessivo",b:"1:1",c:"todos dominantes",d:"todos recessivos",e:"2:2",ok:"a",exp:"Aa x Aa => AA:Aa:aa = 1:2:1 (genotipica). Fenotipica: 3 com A_ (dominante) : 1 com aa."},
+  {id:"6233",tipo:'multipla',disc:"Biologia",tema:"Genetica",subtema:"Mutacao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A radiacao UV pode causar mutacoes no DNA porque:",a:"Provoca dimerizacao de timina, alterando a sequencia do DNA",b:"Desnatura as proteinas",c:"Destroi o nucleo celular",d:"Impede a fotossintese",e:"Aumenta a taxa de meiose",ok:"a",exp:"A UV causa ligacoes cruzadas entre bases de timina adjacentes, gerando mutacoes se nao reparadas."},
+  {id:"6234",tipo:'multipla',disc:"Biologia",tema:"Evolucao",subtema:"Selecao natural",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O principal mecanismo de evolucao proposto por Darwin e Wallace e:",a:"Selecao natural",b:"Mutacao dirigida",c:"Heranca de caracteres adquiridos",d:"Deriva genetica",e:"Recombinacao",ok:"a",exp:"Darwin: selecao natural - individuos com caracteristicas vantajosas sobrevivem e se reproduzem mais."},
+  {id:"6235",tipo:'multipla',disc:"Biologia",tema:"Evolucao",subtema:"Evidencias de evolucao",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Orgaos vestigiais (como o cocix humano) sao evidencias de evolucao porque:",a:"Indicam ancestrais comuns e perda de funcao ao longo da evolucao",b:"Sao estruturas sem origem biologica",c:"Provam a criacao especial",d:"Nao tem relacao com outros grupos",e:"Sao exclusivos de mamiferos",ok:"a",exp:"Orgaos vestigiais sao estruturas reduzidas sem funcao atual, mas funcionais em ancestrais."},
+  {id:"6236",tipo:'multipla',disc:"Biologia",tema:"Ecologia",subtema:"Cadeia alimentar",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Em uma cadeia alimentar capim -> gafanhoto -> sapo -> cobra -> gaviao, os produtores sao:",a:"O capim",b:"Os gafanhotos",c:"Os sapos",d:"As cobras",e:"Os gaviaes",ok:"a",exp:"Produtores sao os autotrofos (realizam fotossintese). Na cadeia: capim e o produtor."},
+  {id:"6237",tipo:'multipla',disc:"Biologia",tema:"Ecologia",subtema:"Biomas brasileiros",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Mata Atlantica e um dos biomas mais ameacados do Brasil. Hoje, restam aproximadamente:",a:"12 a 15% da cobertura original",b:"50%",c:"70%",d:"30%",e:"80%",ok:"a",exp:"A Mata Atlantica perdeu mais de 85% de sua area original; restam apenas 12-15% de remanescentes."},
+  {id:"6238",tipo:'multipla',disc:"Biologia",tema:"Ecologia",subtema:"Ciclos biogeoquimicos",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A decomposicao de materia organica devolve nutrientes ao solo e e realizada principalmente por:",a:"Bacterias e fungos decompositores",b:"Herbivoros",c:"Carnivoros",d:"Vegetais",e:"Algas marinhas",ok:"a",exp:"Decompositores (bacterias e fungos) reciclam a materia organica, devolvendo minerais ao solo."},
+  {id:"6239",tipo:'multipla',disc:"Biologia",tema:"Ecologia",subtema:"Desmatamento e impacto",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O desmatamento aumenta o efeito estufa principalmente porque:",a:"Reduz a absorcao de CO2 e libera carbono estocado nas arvores",b:"Aumenta a producao de O2",c:"Nao afeta os gases atmosfericos",d:"Aumenta a biodiversidade",e:"Resfria o planeta",ok:"a",exp:"As arvores absorvem CO2; ao serem derrubadas, liberam o carbono estocado e reduzem a captura futura."},
+  {id:"6240",tipo:'multipla',disc:"Biologia",tema:"Fisiologia Humana",subtema:"Sistema digestivo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A digestao quimica de proteinas comeca no:",a:"Estomago (pela pepsina em meio acido)",b:"Boca",c:"Intestino delgado",d:"Intestino grosso",e:"Esofago",ok:"a",exp:"No estomago, a pepsina (ativada pelo HCl) inicia a digestao proteica. Na boca so ha digestao de amido."},
+  {id:"6241",tipo:'multipla',disc:"Biologia",tema:"Fisiologia Humana",subtema:"Sistema circulatorio",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A circulacao pulmonar transporta sangue do coracao para os pulmoes para:",a:"Oxigenar o sangue e eliminar CO2",b:"Levar nutrientes aos pulmoes",c:"Filtrar o sangue",d:"Produzir hormonios",e:"Distribuir calor",ok:"a",exp:"Na circulacao pulmonar, o sangue venoso vai do VD aos pulmoes, onde recebe O2 e libera CO2."},
+  {id:"6242",tipo:'multipla',disc:"Biologia",tema:"Botanica",subtema:"Fotossintese",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A fotossintese ocorre principalmente nos cloroplastos e transforma:",a:"Luz solar, CO2 e agua em glicose e O2",b:"Glicose e O2 em CO2 e agua",c:"Proteinas em aminoacidos",d:"O2 em CO2",e:"Solo em nutrientes",ok:"a",exp:"Equacao geral: 6CO2 + 6H2O + luz -> C6H12O6 + 6O2. Organismos autotrofos fixam o carbono atmosferico."},
+  {id:"6243",tipo:'multipla',disc:"Biologia",tema:"Biotecnologia",subtema:"DNA recombinante",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A tecnologia do DNA recombinante permite:",a:"Inserir genes de um organismo em outro para produzir proteinas uteis (ex: insulina)",b:"Clonar orgaos naturais sem alteracao genetica",c:"Criar vida do zero",d:"Eliminar todas as doencas geneticas",e:"Aumentar a biodiversidade sem intervencao",ok:"a",exp:"DNA recombinante: unir DNA de diferentes origens. Usado para producao de insulina, vacinas, etc."},
+  {id:"6244",tipo:'multipla',disc:"Biologia",tema:"Saude",subtema:"Vacinacao",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A imunidade coletiva (efeito de rebanho) ocorre quando:",a:"Uma proporcao suficiente da populacao esta imunizada, protegendo inclusive os nao vacinados",b:"Todos os individuos sao naturalmente imunes",c:"O virus muta e se torna inofensivo",d:"Apenas criancas sao vacinadas",e:"Os antibioticos eliminam o agente infeccioso",ok:"a",exp:"Quando suficientes pessoas estao imunes, a transmissao cai tanto que protege os vulneraveis nao vacinados."},
+  {id:"6245",tipo:'multipla',disc:"Biologia",tema:"Saude",subtema:"Saude publica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O vetor transmissor da dengue, zika e chikungunya no Brasil e:",a:"O mosquito Aedes aegypti",b:"O barbeiro",c:"O Anopheles",d:"O pernilongo comum",e:"A mosca tse-tse",ok:"a",exp:"O Aedes aegypti transmite dengue, zika, chikungunya e febre amarela. Prolifera em agua parada."},
+  {id:"6301",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Colonia",subtema:"Pau-brasil e ciclos",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O primeiro ciclo economico do Brasil colonial foi baseado na extracao de:",a:"Pau-brasil",b:"Ouro",c:"Cana-de-acucar",d:"Borracha",e:"Cafe",ok:"a",exp:"O ciclo do pau-brasil (1500-1530) foi o primeiro ciclo economico, com explora\u00e7\u00e3o da madeira para corante."},
+  {id:"6302",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Colonia",subtema:"Capitanias hereditarias",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"As capitanias hereditarias foram criadas em 1534 com o objetivo de:",a:"Colonizar e defender o territorio brasileiro",b:"Abolir a escravidao",c:"Criar provincias independentes",d:"Garantir liberdade aos indigenas",e:"Instalar o Governo-Geral",ok:"a",exp:"As capitanias foram doadas a donatarios para colonizar o Brasil, que corriam seus proprios custos."},
+  {id:"6303",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Colonia",subtema:"Escravidao africana",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A escravidao africana no Brasil colonial se justificava economicamente porque:",a:"Era mao de obra barata e abundante para a producao agricola exportavel",b:"Os africanos eram fisicamente superiores",c:"A Igreja apoiava oficialmente a escravidao indigena",d:"Os portugueses nao tinham colonos",e:"Os africanos escolhiam vir ao Brasil",ok:"a",exp:"A escravidao africana sustentou a economia colonial, especialmente a cana-de-acucar no Nordeste."},
+  {id:"6304",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Imperio",subtema:"Independencia",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Independencia do Brasil foi proclamada em:",a:"7 de setembro de 1822, por D. Pedro I",b:"15 de novembro de 1889",c:"7 de setembro de 1889",d:"22 de abril de 1500",e:"13 de maio de 1888",ok:"a",exp:"Em 7/9/1822, D. Pedro I proclamou a independencia as margens do rio Ipiranga (Grito do Ipiranga)."},
+  {id:"6305",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Imperio",subtema:"Abolicao da escravidao",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Lei Aurea, que aboliu a escravidao no Brasil, foi assinada em:",a:"13 de maio de 1888, pela Princesa Isabel",b:"7 de setembro de 1822",c:"15 de novembro de 1889",d:"28 de setembro de 1871",e:"13 de maio de 1889",ok:"a",exp:"A Lei Aurea (Lei 3.353/1888) foi assinada pela Princesa Isabel, encerrando a escravidao no Brasil."},
+  {id:"6306",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Proclamacao da Republica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Republica foi proclamada no Brasil em:",a:"15 de novembro de 1889, pelo Marechal Deodoro da Fonseca",b:"7 de setembro de 1822",c:"13 de maio de 1888",d:"1 de janeiro de 1890",e:"1 de novembro de 1889",ok:"a",exp:"Marechal Deodoro liderou o golpe que encerrou o Imperio e proclamou a Republica em 15/11/1889."},
+  {id:"6307",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Republica Velha",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A politica do cafe com leite, durante a Republica Velha, representava o rodizio de poder entre:",a:"Sao Paulo (cafe) e Minas Gerais (leite)",b:"Rio de Janeiro e Bahia",c:"Nordeste e Sul",d:"Exercito e Igreja",e:"Rio e Pernambuco",ok:"a",exp:"SP e MG alternavam a presidencia na Republica Velha (1889-1930), dominada pelas oligarquias agrarias."},
+  {id:"6308",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Estado Novo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Estado Novo (1937-1945) foi o periodo da ditadura de Getulio Vargas caracterizado por:",a:"Centralizacao politica, censura e suspensao das liberdades civis",b:"Plena democracia e eleicoes livres",c:"Abertura economica ao capital estrangeiro",d:"Fim dos partidos politicos e da Constituicao",e:"Industrializacao sem intervencao estatal",ok:"a",exp:"O Estado Novo (1937-45): ditadura varguista com constituicao outorgada, censura, DOPS e corporativismo."},
+  {id:"6309",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Ditadura militar",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O movimento que depOS Joao Goulart e iniciou a ditadura militar no Brasil ocorreu em:",a:"1 de abril de 1964",b:"1 de abril de 1968",c:"1 de abril de 1954",d:"15 de novembro de 1964",e:"31 de marco de 1985",ok:"a",exp:"O golpe militar que depOS Jango ocorreu em 31/3 e 1/4/1964, iniciando 21 anos de ditadura."},
+  {id:"6310",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Brasil Republica",subtema:"Abertura politica",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A redemocratizacao do Brasil culminou na eleicao de Tancredo Neves (1985) e na promulgacao da:",a:"Constituicao Federal de 1988 (Constituicao Cidada)",b:"Constituicao de 1937",c:"Lei Aurea",d:"Constituicao de 1946",e:"Lei do AI-5",ok:"a",exp:"A CF/1988 marcou o fim da ditadura e garantiu direitos fundamentais amplos, sendo chamada de Constituicao Cidada."},
+  {id:"6311",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Historia Geral",subtema:"Revolucao Francesa",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Os tres ideais da Revolucao Francesa (1789) sao:",a:"Liberdade, igualdade e fraternidade",b:"Forca, terra e capital",c:"Monarquia, religio e territorio",d:"Paz, ordem e progresso",e:"Democracia, socialismo e poder",ok:"a",exp:"Liberte, Egalite, Fraternite: os principios da Revolucao Francesa que influenciaram a modernidade politica."},
+  {id:"6312",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Historia Geral",subtema:"Revolucao Industrial",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Revolucao Industrial iniciou-se no seculo XVIII na:",a:"Inglaterra",b:"Franca",c:"Alemanha",d:"Estados Unidos",e:"Italia",ok:"a",exp:"A Rev. Industrial comecou na Inglaterra (sec. XVIII) com a maquina a vapor e a fabricas texteis."},
+  {id:"6313",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Historia Geral",subtema:"Primeira Guerra Mundial",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O estopim da Primeira Guerra Mundial (1914-1918) foi:",a:"O assassinato do Arquiduque Francisco Fernando em Sarajevo",b:"A invasao da Polonia pela Alemanha",c:"A Revolucao Russa",d:"A conquista da Africa pela Europa",e:"A crise da bolsa de 1929",ok:"a",exp:"O assassinato de Francisco Fernando (28/6/1914) serviu de pretexto para o conflito, que ja era esperado."},
+  {id:"6314",tipo:'multipla',disc:"Hist\u00f3ria",tema:"Historia Geral",subtema:"Guerra Fria",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A Guerra Fria foi o conflito entre EUA e URSS caracterizado principalmente por:",a:"Disputa ideologica, tecnologica e geopolitica sem confronto militar direto",b:"Guerra aberta entre as superpotencias",c:"Conflito economico exclusivamente",d:"Alianca entre os dois paises",e:"Disputa apenas cultural",ok:"a",exp:"Guerra Fria (1947-1991): tensao entre capitalismo (EUA) e socialismo (URSS) sem guerra direta entre eles."},
+  {id:"6315",tipo:'multipla',disc:"Geografia",tema:"Geopolitica",subtema:"Organizacao das Nacoes Unidas",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A ONU foi criada em 1945 com o objetivo principal de:",a:"Manter a paz e a seguranca internacional apos a 2a Guerra",b:"Criar uma moeda mundial",c:"Unificar as nacoes em um unico governo",d:"Regular o comercio global",e:"Criar o Euro",ok:"a",exp:"A ONU foi criada em 1945 para prevenir novos conflitos mundiais, com sede em Nova York."},
+  {id:"6316",tipo:'multipla',disc:"Geografia",tema:"Geopolitica",subtema:"Conflitos internacionais",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O conflito entre Israel e Palestina esta relacionado principalmente a:",a:"Disputas territoriais e religiosas na regiao do Oriente Medio",b:"Controle de recursos petroliferos",c:"Rivalidade entre EUA e Russia",d:"Questoes de comercio maritimo",e:"Apenas divergencias religiosas",ok:"a",exp:"O conflito israelense-palestino envolve disputas sobre territorio, reconhecimento estatal e questoes religiosas."},
+  {id:"6317",tipo:'multipla',disc:"Geografia",tema:"Blocos economicos",subtema:"Brics",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O BRICS e formado por:",a:"Brasil, Russia, India, China e Africa do Sul",b:"Brasil, Argentina, Chile, Peru e Colombia",c:"EUA, Canada, Mexico, Brasil e Argentina",d:"Alemanha, Franca, Italia, Espanha e Portugal",e:"Japao, China, Coreia, India e Brasil",ok:"a",exp:"BRICS: economias emergentes - Brasil, Russia, India, China, Africa do Sul (e novos membros desde 2024)."},
+  {id:"6318",tipo:'multipla',disc:"Geografia",tema:"Urbanizacao",subtema:"Urbanizacao brasileira",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O Brasil e hoje considerado um pais predominantemente:",a:"Urbano (mais de 85% da populacao nas cidades)",b:"Rural",c:"Semi-rural",d:"Com populacao igualmente distribuida",e:"Nomade",ok:"a",exp:"Segundo o IBGE, cerca de 85-87% dos brasileiros vivem em areas urbanas, fruto da industrializacao."},
+  {id:"6319",tipo:'multipla',disc:"Geografia",tema:"Urbanizacao",subtema:"Metropolizacao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O processo de metropolizacao gera problemas socioambientais como:",a:"Favelizacao, congestionamentos, poluicao e desigualdade",b:"Desertificacao e queda demografica",c:"Excesso de espaco verde",d:"Queda do PIB",e:"Reducao das migra\u00e7\u00f5es",ok:"a",exp:"O crescimento urbano desordenado gera segregacao social, violencia, falta de saneamento e trafego."},
+  {id:"6320",tipo:'multipla',disc:"Geografia",tema:"Meio ambiente",subtema:"Aquecimento global",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O principal gas responsavel pelo aumento do efeito estufa e o:",a:"Dioxido de carbono (CO2)",b:"Oxigenio (O2)",c:"Nitrogenio (N2)",d:"Gas neon",e:"Vapor d agua puro",ok:"a",exp:"O CO2 emitido por queima de combustiveis fosseis e o principal gas de efeito estufa antropogenico."},
+  {id:"6321",tipo:'multipla',disc:"Geografia",tema:"Meio ambiente",subtema:"Desertificacao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A desertificacao e causada principalmente pela:",a:"Combinacao de secas, desmatamento e uso inadequado do solo",b:"Excesso de chuvas",c:"Urbanizacao nas areas tropicais",d:"Expansao das florestas",e:"Reducao das queimadas",ok:"a",exp:"A desertificacao transforma areas ferteis em desertas por acao humana e climatica combinadas."},
+  {id:"6322",tipo:'multipla',disc:"Geografia",tema:"Demografia",subtema:"Transicao demografica",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A transicao demografica no Brasil e caracterizada por:",a:"Reducao da natalidade e aumento da expectativa de vida, gerando envelhecimento da populacao",b:"Aumento rapido da natalidade",c:"Emigracao em massa",d:"Populacao jovem crescente",e:"Alta mortalidade infantil",ok:"a",exp:"O Brasil vive transicao demografica: menos nascimentos, mais longevidade, populacao envelhecendo."},
+  {id:"6323",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Socrates",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Qual o lema da filosofia socr\u00e1tica que apela para o autoconhecimento?",a:"Conhece-te a ti mesmo",b:"Penso, logo existo",c:"O homem e a medida de todas as coisas",d:"Nada sei",e:"A virtude e o bem supremo",ok:"a",exp:"A maxima grega conhece-te a ti mesmo, associada a Socrates, convida a reflexao sobre a propria natureza."},
+  {id:"6324",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Platao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Para Platao, o conhecimento verdadeiro so e possivel no mundo das:",a:"Ideias (mundo inteligivel)",b:"Sensacoes (mundo sensivel)",c:"Opinioes (doxa)",d:"Emocoes",e:"Experiencias praticas",ok:"a",exp:"Platao: o mundo sensivel e mutavel e ilusorio; o conhecimento verdadeiro vem do mundo das ideias eternas."},
+  {id:"6325",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Antiga",subtema:"Aristoteles",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Aristoteles definia o ser humano como um animal politico porque:",a:"Os humanos necessitam da vida em comunidade para se realizar plenamente",b:"Todos os humanos governam",c:"O homem e naturalmente guerreiro",d:"A politica e inata nos animais",e:"Os humanos sao racionais mas solitarios",ok:"a",exp:"Para Aristoteles, o homem so alcanca a eudaimonia (felicidade/realizacao) na polis, vivendo com outros."},
+  {id:"6326",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Moderna",subtema:"Descartes",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O metodo da duvida cartesiana (hiperb\u00f3lica) busca:",a:"Encontrar uma certeza indubitavel ao duvidar de tudo que pode ser duvidado",b:"Negar toda possibilidade de conhecimento",c:"Confirmar os dogmas religiosos",d:"Refutar a existencia de Deus",e:"Valorizar apenas a experiencia",ok:"a",exp:"Descartes duvida de tudo ate encontrar algo indubitavel: o cogito (penso, logo existo)."},
+  {id:"6327",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Moderna",subtema:"Iluminismo e Locke",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"John Locke defendia que o conhecimento humano vem:",a:"Da experiencia sensorial (empirismo: a mente e uma tabula rasa)",b:"Das ideias inatas",c:"Da razao pura sem experiencia",d:"Da revelacao divina",e:"Da cultura coletiva",ok:"a",exp:"Locke, pai do empirismo: nascemos sem ideias inatas. Todo conhecimento vem da experiencia (tabula rasa)."},
+  {id:"6328",tipo:'multipla',disc:"Filosofia",tema:"Filosofia Moderna",subtema:"Rousseau e Contrato Social",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Para Rousseau, o contrato social e o acordo pelo qual:",a:"Os individuos cedem parte de sua liberdade para viver em sociedade e receber protecao",b:"O rei governa sem limites",c:"A Igreja controla o Estado",d:"Os mais fortes dominam os mais fracos",e:"A propriedade privada e abolida",ok:"a",exp:"Rousseau: a vontade geral (soberania popular) legitima o poder, nao a forca ou a heranca."},
+  {id:"6329",tipo:'multipla',disc:"Filosofia",tema:"Etica",subtema:"Etica kantiana",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O imperativo categorico de Kant diz para agir de forma que:",a:"Sua acao possa se tornar lei universal para todos os seres racionais",b:"Maximize o prazer pessoal",c:"Siga as leis do Estado",d:"Atenda ao bem da maioria",e:"Obede\u00e7a a Deus",ok:"a",exp:"Kant: age somente segundo maximas que possas querer que se tornem leis universais. Etica deontologica."},
+  {id:"6330",tipo:'multipla',disc:"Sociologia",tema:"Cultura",subtema:"Etnocentrismo e relativismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O etnocentrismo consiste em:",a:"Julgar outras culturas pela logica e valores da propria cultura",b:"Valorizar todas as culturas igualmente",c:"Adotar outra cultura como superior",d:"Estudar culturas sem emitir julgamentos",e:"Misturar elementos de duas culturas",ok:"a",exp:"Etnocentrismo: ver a propria cultura como referencia e superior, avaliando as outras por esse padrao."},
+  {id:"6331",tipo:'multipla',disc:"Sociologia",tema:"Cultura",subtema:"Identidade cultural",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O conceito de cultura nas Ciencias Sociais se refere a:",a:"Todo o conjunto de praticas, valores, crencas e simbolos compartilhados por um grupo",b:"Apenas as artes e a literatura",c:"O nivel educacional de uma populacao",d:"Apenas os habitos alimentares",e:"A genetica de uma populacao",ok:"a",exp:"Cultura: conjunto de producoes humanas materiais e imateriais (lingua, religio, costumes, arte, valores)."},
+  {id:"6332",tipo:'multipla',disc:"Sociologia",tema:"Desigualdade Social",subtema:"Estratificacao social",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Indice de Gini mede:",a:"A desigualdade de distribuicao de renda (0 = igualdade total; 1 = desigualdade maxima)",b:"O crescimento economico",c:"A taxa de pobreza",d:"O desenvolvimento humano",e:"O acesso a educacao",ok:"a",exp:"O Gini indica concentracao de renda. Quanto mais proximo de 1, maior a desigualdade. O Brasil historicamente tem Gini alto."},
+  {id:"6333",tipo:'multipla',disc:"Sociologia",tema:"Movimentos Sociais",subtema:"Feminismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O movimento feminista busca principalmente:",a:"A igualdade de direitos, oportunidades e representacao entre homens e mulheres",b:"A superioridade feminina",c:"Apenas o direito ao voto",d:"A separacao dos sexos",e:"A extincao do casamento",ok:"a",exp:"O feminismo, em suas multiplas ondas, luta por igualdade de genero em politica, economia, cultura e vida cotidiana."},
+  {id:"6334",tipo:'multipla',disc:"Sociologia",tema:"Trabalho",subtema:"Uberizacao do trabalho",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A uberizacao do trabalho refere-se ao fenomeno de:",a:"Precarizacao via plataformas digitais sem vinculo empregaticio formal",b:"Industrializacao acelerada",c:"Formalizacao dos trabalhadores informais",d:"Robotizacao total da producao",e:"Aumento do salario minimo",ok:"a",exp:"A uberizacao cria trabalhadores formalmente autonomos mas economicamente dependentes de plataformas."},
+  {id:"6335",tipo:'multipla',disc:"Sociologia",tema:"Industria Cultural",subtema:"Mass media",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A industria cultural, conceito de Adorno e Horkheimer, critica:",a:"A producao em serie de bens culturais que padroniza gostos e reduz a capacidade critica",b:"A arte artesanal e popular",c:"O excesso de producao literaria autonoma",d:"A liberdade de imprensa",e:"A criatividade individual",ok:"a",exp:"Para a Escola de Frankfurt, a industria cultural transforma arte em mercadoria e aliena o publico."},
+  {id:"6336",tipo:'multipla',disc:"Sociologia",tema:"Direitos Humanos",subtema:"Declaracao Universal",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A Declaracao Universal dos Direitos Humanos foi adotada pela ONU em:",a:"1948",b:"1945",c:"1789",d:"1988",e:"1960",ok:"a",exp:"A DUDH foi proclamada em 10/12/1948 como resposta aos horrores da 2a Guerra. Direitos universais e inalien\u00e1veis."},
+  {id:"6337",tipo:'multipla',disc:"Sociologia",tema:"Direitos Humanos",subtema:"Racismo estrutural",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O conceito de racismo estrutural indica que o racismo:",a:"Esta incorporado nas instituicoes, leis e praticas sociais, nao apenas em individuos",b:"E apenas uma questao de atitudes individuais",c:"Nao existe mais no Brasil",d:"E exclusivo de grupos marginalizados",e:"Desapareceu com a abolicao",ok:"a",exp:"Racismo estrutural (Silvio Almeida): o racismo e modo de operacao da estrutura social, nao so ato individual."},
+  {id:"6401",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Interpretacao de Texto",subtema:"Ideia principal",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Na leitura de um texto, a ideia principal e aquela que:",a:"Sintetiza o tema central e e sustentada pelas demais informacoes do texto",b:"Aparece apenas na introducao",c:"E sempre explicita e nunca implicita",d:"Nao pode ser inferida",e:"Repete as palavras do titulo",ok:"a",exp:"A ideia principal condensa o sentido global do texto, podendo ser explicita ou inferida pelo leitor."},
+  {id:"6402",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Interpretacao de Texto",subtema:"Inferencia",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A inferencia em leitura consiste em:",a:"Deduzir informacoes implicitas a partir do contexto e conhecimento de mundo",b:"Copiar literalmente o texto",c:"Traduzir o texto para outra lingua",d:"Identificar apenas palavras desconhecidas",e:"Memorizar o texto integralmente",ok:"a",exp:"Inferir e ir alem do expresso: usar pistas do texto e o proprio repertorio para construir sentido."},
+  {id:"6403",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Interpretacao de Texto",subtema:"Coesao referencial",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O pronome na frase Joao comprou um carro. Ele e muito caro. substitui:",a:"O carro",b:"Joao",c:"A compra",d:"O preco",e:"Nenhum elemento anterior",ok:"a",exp:"Coesao referencial: o pronome ELE retoma o substantivo carro (anafora), garantindo coesao textual."},
+  {id:"6404",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Generos Textuais",subtema:"Cronica",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A cronica e um genero textual que se caracteriza por:",a:"Relato breve de situacoes do cotidiano com leveza e reflexao",b:"Texto longo e argumentativo sobre politica",c:"Descricao tecnica de fenomenos",d:"Narrativa de ficcao longa",e:"Texto normativo com linguagem juridica",ok:"a",exp:"Cronica: genero hibrido (narrativo/lirico), curto, sobre o cotidiano, publicado em jornais e revistas."},
+  {id:"6405",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Generos Textuais",subtema:"Publicidade",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Um texto publicitario tem como objetivo principal:",a:"Persuadir o receptor a adquirir um produto ou adotar um comportamento",b:"Informar objetivamente sobre fatos",c:"Narrar historias de ficcao",d:"Instruir procedimentos tecnicos",e:"Questionar o receptor filosoficamente",ok:"a",exp:"A publicidade usa linguagem apelativa, imagens e argumentos para persuadir e vender."},
+  {id:"6406",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Funcoes da Linguagem",subtema:"Funcao referencial",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A funcao referencial da linguagem centra-se no:",a:"Contexto, transmitindo informacoes objetivas",b:"Emissor, expressando sentimentos",c:"Receptor, convencendo-o",d:"Codigo, descrevendo-o",e:"Canal, mantendo o contato",ok:"a",exp:"Funcao referencial (ou denotativa): predomina em textos informativos e cientificos, voltada ao contexto."},
+  {id:"6407",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Funcoes da Linguagem",subtema:"Funcao poetica",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A funcao poetica da linguagem destaca:",a:"A propria mensagem, explorando efeitos esteticos da linguagem",b:"O emissor e suas emocoes",c:"O receptor",d:"O canal de comunicacao",e:"O codigo linguistico",ok:"a",exp:"Funcao poetica: o foco e na forma da mensagem - escolha de palavras, ritmo, sonoridade, figuras."},
+  {id:"6408",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Figuras de Linguagem",subtema:"Ironia",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Na frase Que servico excelente! Esperei 2 horas pelo atendimento., a figura de linguagem presente e:",a:"Ironia",b:"Eufemismo",c:"Litotes",d:"Hiperbole",e:"Personificacao",ok:"a",exp:"Ironia: dizer o contrario do que se pensa para criticar. Elogio aparente que na verdade critica o mau servico."},
+  {id:"6409",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Figuras de Linguagem",subtema:"Hiperbole",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A frase Ja te disse isso um milhao de vezes! exemplifica a figura de:",a:"Hiperbole",b:"Metafora",c:"Antitese",d:"Eufemismo",e:"Paradoxo",ok:"a",exp:"Hiperbole: exagero intencional para dar enfase - ninguem diz literalmente um milhao de vezes."},
+  {id:"6410",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Figuras de Linguagem",subtema:"Eufemismo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Usar a expressao ele nos deixou no lugar de ele morreu e um exemplo de:",a:"Eufemismo",b:"Ironia",c:"Hiperbole",d:"Onomatopeia",e:"Paranomasia",ok:"a",exp:"Eufemismo: substituicao de expressao rude por outra mais suave para amenizar o impacto."},
+  {id:"6411",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Variacao Linguistica",subtema:"Registro formal e informal",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A variacao linguistica que ocorre de acordo com a situacao de comunicacao (formal ou informal) e chamada de:",a:"Diafasica (ou de registro)",b:"Diatopica (regional)",c:"Diacronica (historica)",d:"Diastratica (social)",e:"Diatecnica",ok:"a",exp:"Variacao diafasica: adaptar o uso da lingua ao contexto (trabalho=formal, amigos=informal)."},
+  {id:"6412",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Coesao e Coerencia",subtema:"Conectivos",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O conectivo PORTANTO indica, entre os enunciados que liga, uma relacao de:",a:"Conclusao",b:"Oposicao",c:"Condicao",d:"Adicao",e:"Causa",ok:"a",exp:"PORTANTO (logo, dessa forma) liga uma conclusao a premissas anteriores."},
+  {id:"6413",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Coesao e Coerencia",subtema:"Coerencia textual",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A coerencia textual refere-se a:",a:"Unidade de sentido e nao contradicao das ideias ao longo do texto",b:"Uso correto da gramatica",c:"Presenca de conectivos",d:"Organizacao em paragrafos",e:"Ausencia de metaforas",ok:"a",exp:"Coerencia: logica e harmonia de sentido entre as partes do texto. Difere de coesao (formal)."},
+  {id:"6414",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Pontuacao",subtema:"Virgula e sentido",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A virgula altera o sentido em: O professor disse o aluno errou vs O professor, disse o aluno, errou. No segundo, quem errou?",a:"O professor (o aluno relata que o professor errou)",b:"O aluno",c:"Ambos erraram",d:"Ninguem errou",e:"O sentido e identico",ok:"a",exp:"A virgula isola o aluno disse como inciso, indicando que o aluno e o narrador e o professor e quem errou."},
+  {id:"6415",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Concordancia",subtema:"Concordancia verbal",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"Na frase Fazem dez anos que nao o vejo., o verbo fazer no sentido de tempo decorrido deve ser:",a:"Impessoal - uso correto no singular: Faz dez anos",b:"Plural para concordar com dez anos",c:"No passado composto",d:"Substituido pelo verbo ter",e:"Acompanhado de sujeito",ok:"a",exp:"Fazer indicando tempo decorrido e verbo impessoal: Faz dez anos (singular), nao fazem."},
+  {id:"6416",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Regencia",subtema:"Crase",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O uso correto do acento grave (crase) ocorre em:",a:"Fui a cidade (a+a artigo = a cidade feminina: a cidade)",b:"Fui a Pedro",c:"Fui a praias",d:"Refiro-me a isso",e:"Entreguei a ela",ok:"a",exp:"Crase: fusao da preposicao a com o artigo a. Usa-se antes de substantivos femininos precedidos de artigo."},
+  {id:"6417",tipo:'multipla',disc:"Literatura",tema:"Escolas Literarias",subtema:"Barroco",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Barroco literario (sec. XVII) caracteriza-se pelo conflito entre:",a:"Fe e razao, corpo e alma, mundo terreno e divino",b:"Razao e sentimento apenas",c:"Romantismo e classicismo",d:"Campo e cidade",e:"Passado e futuro",ok:"a",exp:"O Barroco reflete a crise espiritual do sec. XVII: tensao entre fe religiosa e o humanismo renascentista."},
+  {id:"6418",tipo:'multipla',disc:"Literatura",tema:"Escolas Literarias",subtema:"Romantismo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O Romantismo brasileiro no seculo XIX valorizava principalmente:",a:"O nacionalismo, a natureza, o indio e os sentimentos",b:"A razao e a objetividade",c:"O proletariado e a industria",d:"A descricao cientifica",e:"O universalismo classico",ok:"a",exp:"O Romantismo brasileiro (1836-1881) exaltou a patria, o indio como heroi, a natureza e o subjetivismo."},
+  {id:"6419",tipo:'multipla',disc:"Literatura",tema:"Escolas Literarias",subtema:"Realismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Realismo/Naturalismo (fin do sec. XIX) na literatura brasileira tem como principal nome:",a:"Machado de Assis (Realismo) e Eca de Queiros e Azevedo (Naturalismo)",b:"Jose de Alencar",c:"Castro Alves",d:"Carlos Drummond de Andrade",e:"Guimaraes Rosa",ok:"a",exp:"O Realismo (1880) critica a sociedade burguesa. Machado de Assis e o maior nome brasileiro; Azevedo no Naturalismo."},
+  {id:"6420",tipo:'multipla',disc:"Literatura",tema:"Escolas Literarias",subtema:"Modernismo brasileiro",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"A primeira fase do Modernismo brasileiro (1922-1930) tem como marco:",a:"A Semana de Arte Moderna de 1922 em Sao Paulo",b:"A publicacao de Memorias Postumas de Bras Cubas",c:"A morte de Euclides da Cunha",d:"A revolucao de 1930",e:"A publicacao de Iracema",ok:"a",exp:"A Semana de 22 rompeu com o academicismo e inaugurou o Modernismo, buscando linguagem e temas brasileiros."},
+  {id:"6421",tipo:'multipla',disc:"Literatura",tema:"Vanguardas Europeias",subtema:"Surrealismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Surrealismo europeu caracteriza-se por:",a:"Explorar o inconsciente, sonhos e o irracional como fontes de criacao artistica",b:"Celebrar a industria e a tecnologia",c:"Usar versos metrificados classsicos",d:"Negar qualquer forma de arte",e:"Retratar o cotidiano operario",ok:"a",exp:"O Surrealismo (Andre Breton, 1924) valoriza o sonho, o inconsciente freudiano e a liberdade criativa total."},
+  {id:"6422",tipo:'multipla',disc:"Literatura",tema:"Vanguardas Europeias",subtema:"Futurismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Futurismo, de Marinetti (1909), exaltava:",a:"A velocidade, a tecnologia, as maquinas e a ruptura com o passado",b:"A natureza e a arte pastoral",c:"O retorno a antiguidade classica",d:"A introspeccao e o inconsciente",e:"A permanencia das tradicoes",ok:"a",exp:"O Futurismo celebrava o progresso, as maquinas, os carros e rompeu com as tradicoes artisticas."},
+  {id:"6423",tipo:'multipla',disc:"Literatura",tema:"Analise de Poemas",subtema:"Versificacao",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A rima entre versos em ABAB e chamada de rima:",a:"Alternada (ou cruzada)",b:"Emparelhada (AABB)",c:"Interpolada (ABBA)",d:"Toante",e:"Rica",ok:"a",exp:"ABAB = rima alternada/cruzada. AABB = emparelhada. ABBA = interpolada ou abraco."},
+  {id:"6424",tipo:'multipla',disc:"Literatura",tema:"Analise de Narrativas",subtema:"Narrador",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O narrador-personagem (1a pessoa) na narrativa e aquele que:",a:"Participa da historia e conta a propria experiencia",b:"Sabe tudo sobre todos os personagens",c:"Nao aparece na historia",d:"Narra em terceira pessoa",e:"E o proprio autor",ok:"a",exp:"Narrador em 1a pessoa: conta da sua perspectiva limitada. Narrador observador: 3a pessoa limitada."},
+  {id:"6425",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Impressionismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Impressionismo (fin do sec. XIX) revolucionou a pintura ao:",a:"Capturar a luz e o instante fugaz, com pinceladas soltas e cores vibrantes",b:"Retratar cenas religiosas com perfeicao anatomica",c:"Usar linhas geometricas precisas",d:"Pintar apenas retratos de nobres",e:"Negar a representacao da natureza",ok:"a",exp:"Monet, Renoir: Impressionismo captura a luz natural e impressoes visuais, nao o realismo fotografico."},
+  {id:"6426",tipo:'multipla',disc:"Artes",tema:"Movimentos artisticos",subtema:"Cubismo",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O Cubismo, de Picasso e Braque, caracteriza-se por:",a:"Representar objetos de multiplos angulos simultaneamente em formas geometricas",b:"Usar apenas cores primarias em faixas horizontais",c:"Retratar cenas rurais",d:"Negar qualquer forma de figuracao",e:"Imitar a fotografia",ok:"a",exp:"O Cubismo (1907) fragmentou a representacao, mostrando varios angulos ao mesmo tempo."},
+  {id:"6427",tipo:'multipla',disc:"Artes",tema:"Arte e sociedade",subtema:"Arte engajada",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"O muralismo mexicano de Diego Rivera utilizou a arte para:",a:"Retratar lutas sociais e exaltar a historia e o povo mexicano",b:"Decorar igrejas com temas religiosos",c:"Promover a arte abstrata",d:"Criticar exclusivamente a arte europeia",e:"Criar quadros para mercado de arte privado",ok:"a",exp:"O muralismo mexicano (Rivera, Orozco, Siqueiros) usou paredes publicas para narrar historia e politica."},
+  {id:"6428",tipo:'multipla',disc:"Artes",tema:"Patrimonio cultural",subtema:"Patrimonio imaterial",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"O patrimonio cultural imaterial inclui:",a:"Musicas, festas, saberes, rituais e modos de fazer transmitidos de geracao em geracao",b:"Apenas monumentos e edificios historicos",c:"Apenas obras de arte em museus",d:"Apenas documentos escritos",e:"Apenas artefatos arqueologicos",ok:"a",exp:"Patrimonio imaterial: samba, capoeira, festas, culinaria, artesanato - bens culturais vivos e dinamicos."},
+  {id:"6429",tipo:'multipla',disc:"Artes",tema:"Arte moderna e contemporanea",subtema:"Arte conceitual",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A arte conceitual (sec. XX) prioriza:",a:"A ideia e o conceito acima da execucao tecnica da obra",b:"A perfeicao tecnica do desenho",c:"O realismo fotografico",d:"A pintura a oleo classica",e:"O artesanato tradicional",ok:"a",exp:"A arte conceitual (anos 60-70) questiona o que e arte: a ideia e a obra, nao a habilidade manual."},
+  {id:"6430",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Intertextualidade",subtema:"Parodia",dif:"M\u00e9dio",fonte:"ENEM",ano:"2022",xp:15,enunciado:"A parodia e uma forma de intertextualidade que:",a:"Imita e transforma um texto para criar efeito comico ou critico",b:"Copia o texto original integralmente",c:"Elogia o texto fonte",d:"Traduz o texto para outra lingua",e:"Resume o texto original",ok:"a",exp:"Parodia: imitacao transformada com intencao humoristica ou critica. Diferente de plagio (copia sem credito)."},
+  {id:"6431",tipo:'multipla',disc:"L\u00edngua Portuguesa",tema:"Denotacao e Conotacao",subtema:"Sentido conotativo",dif:"F\u00e1cil",fonte:"ENEM",ano:"2023",xp:10,enunciado:"Na frase Ela tem um coracao de ouro., o uso de ouro e:",a:"Conotativo (sentido figurado: pessoa bondosa)",b:"Denotativo (sentido literal)",c:"Tecnico",d:"Juridico",e:"Cientifico",ok:"a",exp:"Conotacao: sentido figurado. Ninguem tem ouro no coracao literalmente; indica bondade."},
+  {id:"6501",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Sistema Financeiro Nacional",subtema:"Estrutura do SFN",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"O Sistema Financeiro Nacional (SFN) e composto por orgaos normativos, supervisores e operadores. O principal orgao normativo e:",a:"Conselho Monetario Nacional (CMN)",b:"Banco Central do Brasil (BACEN)",c:"Comissao de Valores Mobiliarios (CVM)",d:"Banco do Brasil",e:"Caixa Economica Federal",ok:"a",exp:"O CMN e o orgao maximo normativo do SFN: define politicas de moeda, credito e cambio. O BACEN e supervisor (executa as politicas)."},
+  {id:"6502",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Sistema Financeiro Nacional",subtema:"Banco Central",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Entre as funcoes do Banco Central do Brasil (BACEN), esta a de:",a:"Emitir moeda, controlar inflacao e fiscalizar as instituicoes financeiras",b:"Financiar o Governo diretamente",c:"Conceder emprestimos diretos ao publico",d:"Regular o mercado de acoes",e:"Fiscalizar o mercado de seguros",ok:"a",exp:"O BACEN emite papel-moeda, controla a politica monetaria (taxa Selic), fiscaliza bancos e administra reservas."},
+  {id:"6503",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Sistema Financeiro Nacional",subtema:"CVM",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"A Comissao de Valores Mobiliarios (CVM) tem como funcao principal:",a:"Regular e fiscalizar o mercado de capitais (acoes, debentures, fundos)",b:"Emitir moeda",c:"Definir a taxa SELIC",d:"Fiscalizar os bancos comerciais",e:"Regular os seguros",ok:"a",exp:"CVM: autarquia que regula e fiscaliza o mercado de valores mobiliarios (bolsa, fundos). Criada pela Lei 6.385/1976."},
+  {id:"6504",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Sistema Financeiro Nacional",subtema:"SUSEP",dif:"M\u00e9dio",fonte:"FCC-CEF",ano:"2023",xp:15,enunciado:"A SUSEP e o orgao responsavel por fiscalizar:",a:"O mercado de seguros, previdencia privada aberta e capitalizacao",b:"Os bancos comerciais",c:"O mercado de acoes",d:"Os fundos de pensao de servidores",e:"A emissao de moeda",ok:"a",exp:"SUSEP (Superintendencia de Seguros Privados) regula seguros, previdencia aberta (PGBL/VGBL) e capitalizacao."},
+  {id:"6505",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Sistema Financeiro Nacional",subtema:"Taxa Selic",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"A taxa SELIC, definida pelo COPOM (Comite de Politica Monetaria), e:",a:"A taxa basica de juros da economia brasileira, usada como referencia",b:"A taxa cobrada por bancos em emprestimos pessoais",c:"A taxa de cambio oficial",d:"A taxa de inflacao mensal",e:"A taxa de redesconto do Tesouro",ok:"a",exp:"SELIC e a taxa dos titulos publicos federais, usada como referencia para todos os juros da economia."},
+  {id:"6506",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"Conta poupanca",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"A caderneta de poupanca e o investimento mais basico do sistema bancario e possui como caracteristica:",a:"Garantia do FGC ate R$ 250.000 por CPF por instituicao, liquidez e rentabilidade moderada",b:"Rentabilidade atrelada ao CDI sem garantia",c:"Aplicacao minima de R$ 1.000,00",d:"Prazo minimo de 12 meses",e:"Tributacao de 25% sobre os rendimentos",ok:"a",exp:"Poupanca: liquidez diaria, isenta de IR para pessoas fisicas, garantida pelo FGC ate R$ 250 mil. Rendimento baseado em TR+juros ou 70% da Selic (quando Selic <= 8,5%)."},
+  {id:"6507",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"CDB",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"O CDB (Certificado de Deposito Bancario) e um titulo emitido por bancos e possui as seguintes caracteristicas:",a:"Rentabilidade em geral atrelada ao CDI, garantia do FGC e tributacao regressiva de IR",b:"Isencao total de IR e sem garantia",c:"Rendimento fixo igual a poupanca",d:"Prazo unico de 2 anos",e:"So disponivel para pessoas juridicas",ok:"a",exp:"CDB: produto bancario de renda fixa, geralmente pre ou pos-fixado (CDI). IR regressivo: 22,5% (ate 180 dias) a 15% (acima de 720 dias). FGC garante ate R$ 250 mil."},
+  {id:"6508",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"LCI e LCA",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"A principal vantagem da LCI (Letra de Credito Imobiliario) e da LCA (Letra de Credito do Agronegocio) para pessoa fisica e:",a:"Isencao de Imposto de Renda sobre os rendimentos",b:"Rentabilidade superior a renda variavel",c:"Liquidez diaria garantida",d:"Prazo maximo de 90 dias",e:"Garantia ilimitada do FGC",ok:"a",exp:"LCI e LCA sao isentas de IR para pessoas fisicas, o que aumenta a rentabilidade liquida frente ao CDB."},
+  {id:"6509",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"PGBL e VGBL",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"A diferenca fundamental entre PGBL e VGBL na previdencia privada e:",a:"No PGBL as contribuicoes sao dedutivas no IR (ate 12% da renda bruta); no VGBL so incide IR sobre o rendimento",b:"No VGBL ha deducao no IR e no PGBL nao",c:"Ambos sao identicos",d:"O PGBL e para servidores publicos apenas",e:"O VGBL e isento de IR em qualquer caso",ok:"a",exp:"PGBL: deduz ate 12% da renda bruta no IR (ideal para quem faz declaracao completa). VGBL: IR so sobre rendimento (ideal para declaracao simplificada)."},
+  {id:"6510",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"FGC",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"O Fundo Garantidor de Creditos (FGC) garante o reembolso de depositos por investidor por conglomerado financeiro de ate:",a:"R$ 250.000,00",b:"R$ 100.000,00",c:"R$ 500.000,00",d:"R$ 50.000,00",e:"R$ 1.000.000,00",ok:"a",exp:"O FGC garante ate R$ 250 mil por CPF/CNPJ por conglomerado financeiro em depositos a vista, poupanca, CDB, LCI, LCA, etc."},
+  {id:"6511",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"PIX",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"O PIX e o sistema de pagamentos instantaneos do Banco Central. Uma de suas principais caracteristicas e:",a:"Disponivel 24 horas por dia, 7 dias por semana, com liquidacao imediata",b:"Funciona apenas em dias uteis no horario bancario",c:"Cobra taxa em todas as transacoes",d:"Tem limite de R$ 1.000,00 por transacao",e:"Foi criado antes do TED",ok:"a",exp:"O PIX (lancado pelo BACEN em novembro de 2020) funciona 24/7, com liquidacao em segundos, e gratuito para PF."},
+  {id:"6512",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Produtos Bancarios",subtema:"TED e DOC",dif:"F\u00e1cil",fonte:"FCC-CEF",ano:"2023",xp:10,enunciado:"A principal diferenca entre TED e DOC nas transferencias bancarias e:",a:"TED tem liquidacao no mesmo dia; DOC e liquidado no dia util seguinte",b:"TED so funciona entre bancos iguais",c:"DOC e mais rapido que TED",d:"TED e exclusivo de empresas",e:"Ambos sao liquidados no mesmo instante",ok:"a",exp:"TED: transferencia no mesmo dia util (se dentro do horario). DOC: liquidado no proximo dia util. O PIX substituiu grande parte dessas operacoes."},
+  {id:"6513",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Mercado de Capitais",subtema:"Acoes",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2022",xp:15,enunciado:"Uma acao ordinaria (ON) difere de uma acao preferencial (PN) porque a ON:",a:"Concede direito a voto nas assembleias da empresa",b:"Paga dividendos maiores",c:"E negociada apenas no mercado primario",d:"Possui preferencia na distribuicao de ativos em caso de falencia",e:"Nao pode ser negociada na bolsa",ok:"a",exp:"ON: direito a voto (simbolo: XXXX3). PN: preferencia em dividendos, geralmente sem voto (XXXX4). Tag along."},
+  {id:"6514",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Mercado de Capitais",subtema:"Debentures",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"As debentures sao titulos de renda fixa emitidos por empresas para:",a:"Captar recursos de longo prazo diretamente no mercado",b:"Financiar o governo federal",c:"Garantir depositos bancarios",d:"Pagar dividendos aos acionistas",e:"Emitir acoes novas",ok:"a",exp:"Debentures: divida corporativa. A empresa emite para captar dinheiro, pagando juros ao investidor."},
+  {id:"6515",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Mercado de Capitais",subtema:"Fundos de investimento",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Em um fundo de investimento, o gestor toma decisoes de aplicacao dos recursos dos:",a:"Cotistas, que assumem os riscos de acordo com o tipo de fundo",b:"Bancos, que garantem o capital investido",c:"Governo, que define a carteira",d:"Seguradoras, que cobrem perdas",e:"Banco Central, que gerencia diretamente",ok:"a",exp:"No fundo, os cotistas (investidores) compartilham recursos; o gestor aplica na carteira. O risco e dos cotistas."},
+  {id:"6516",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Cambio",subtema:"Taxa de cambio",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"Quando a taxa de cambio do dolar sobe (o real se desvaloriza), o efeito imediato sobre as exportacoes brasileiras e:",a:"As exportacoes ficam mais competitivas (produto brasileiro fica mais barato para o exterior)",b:"As exportacoes diminuem",c:"As exportacoes nao sao afetadas",d:"O Banco Central intervem sempre",e:"As importacoes tambem ficam mais baratas",ok:"a",exp:"Real desvalorizado: dolar alto. Exportador recebe mais reais por cada dolar, tornando o produto mais competitivo."},
+  {id:"6517",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Credito",subtema:"Credito consignado",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"O credito consignado tem juros menores que o credito pessoal porque:",a:"A parcela e descontada diretamente da folha de pagamento, reduzindo o risco de inadimplencia",b:"E regulamentado pelo Governo Federal",c:"Nao ha cobranca de IOF",d:"O valor e mais alto",e:"So existe para empresarios",ok:"a",exp:"No consignado, o banco desconta a parcela direto do salario/beneficio, eliminando risco de nao pagamento."},
+  {id:"6518",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Credito",subtema:"Microcr\u00e9dito",dif:"M\u00e9dio",fonte:"FCC-CEF",ano:"2023",xp:15,enunciado:"O microcr\u00e9dito destina-se principalmente a:",a:"Pequenos empreendedores de baixa renda que nao tem acesso ao credito tradicional",b:"Grandes empresas em expansao",c:"Importadores de alta tecnologia",d:"Fundos de investimento",e:"Servidores publicos federais",ok:"a",exp:"O microcr\u00e9dito (ex: CrediAmigo da CEF e Banco do Nordeste) apoia empreendedores informais e microempresas."},
+  {id:"6519",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Compliance",subtema:"LGPD",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"A Lei Geral de Protecao de Dados (LGPD - Lei 13.709/2018) regula:",a:"O tratamento de dados pessoais por empresas e orgaos publicos, garantindo direitos ao titular",b:"Apenas o compartilhamento de dados bancarios",c:"A transmissao de dados em redes sociais apenas",d:"Somente dados de saude",e:"A emissao de moeda digital",ok:"a",exp:"A LGPD estabelece regras para coleta, uso, armazenamento e compartilhamento de dados pessoais. Inspirada no GDPR europeu."},
+  {id:"6520",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Compliance",subtema:"Prevencao lavagem de dinheiro",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"O COAF (Conselho de Controle de Atividades Financeiras) tem como funcao:",a:"Receber, examinar e identificar ocorrencias suspeitas de lavagem de dinheiro",b:"Emitir novas cedulas de real",c:"Fiscalizar o mercado de acoes",d:"Definir a taxa de juros",e:"Garantir depositos bancarios",ok:"a",exp:"COAF (vinculado ao BACEN): inteligencia financeira brasileira, combate lavagem de dinheiro e terrorismo."},
+  {id:"6521",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Compliance",subtema:"Sigilo bancario",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"O sigilo bancario no Brasil e regulado pela Lei Complementar 105/2001, que permite sua quebra por:",a:"Determinacao judicial ou por autoridades com previsao legal (Receita Federal, CPI)",b:"Qualquer cidadao que requeira",c:"Apenas o Banco Central",d:"Solicitacao dos proprios bancos",e:"Resolucao do CMN",ok:"a",exp:"LC 105/2001: sigilo e regra, mas pode ser quebrado por ordem judicial, Receita Federal, CPI e BACEN."},
+  {id:"6522",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Vendas Bancarias",subtema:"Necessidades do cliente",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"No atendimento bancario, antes de oferecer um produto, o banco deve prioritariamente:",a:"Conhecer o perfil e as necessidades financeiras do cliente (Suitability)",b:"Oferecer o produto mais caro do portfolio",c:"Apresentar todos os produtos disponiveis sem filtro",d:"Ignorar a situacao financeira do cliente",e:"Focar apenas em clientes de alta renda",ok:"a",exp:"Suitability (adequacao): identificar o perfil de risco e necessidade do cliente antes de indicar investimentos ou credito."},
+  {id:"6523",tipo:'multipla',disc:"Conhecimentos Bancarios",tema:"Vendas Bancarias",subtema:"Canais digitais",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"O Internet Banking e o Mobile Banking permitem ao cliente:",a:"Realizar operacoes bancarias de qualquer lugar com acesso a internet, 24 horas",b:"Apenas consultar o saldo",c:"Realizar saques em dinheiro",d:"Negociar taxas com o gerente diretamente",e:"Contratar financiamentos imobiliarios sem aprovacao de credito",ok:"a",exp:"Internet e mobile banking: transferencias, pagamentos, investimentos, contratacao de produtos - 24/7."},
+  {id:"6524",tipo:'multipla',disc:"Raciocinio Logico",tema:"Logica Proposicional",subtema:"Condicional",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Se chover, entao a rua ficara molhada. Sabe-se que a rua esta seca. Podemos concluir que:",a:"Nao choveu",b:"Choveu",c:"Pode ter chovido ou nao",d:"A rua nunca fica molhada",e:"Nao e possivel concluir nada",ok:"a",exp:"Contraposicao: se P->Q e valida, entao nao-Q->nao-P tambem e. Rua seca (nao-Q) logo nao choveu (nao-P)."},
+  {id:"6525",tipo:'multipla',disc:"Raciocinio Logico",tema:"Logica Proposicional",subtema:"Negacao",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"A negacao de Todos os funcionarios sao pontuais e:",a:"Algum funcionario nao e pontual",b:"Nenhum funcionario e pontual",c:"Todos os funcionarios nao sao pontuais",d:"Alguns funcionarios sao pontuais",e:"A maioria dos funcionarios nao e pontual",ok:"a",exp:"Negacao de TODOS: ALGUM NAO. Negacao de ALGUM: NENHUM. Regra dos quantificadores."},
+  {id:"6526",tipo:'multipla',disc:"Raciocinio Logico",tema:"Sequencias",subtema:"Serie numerica",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Qual o proximo numero na sequencia: 2, 4, 8, 16, 32, __?",a:"64",b:"48",c:"36",d:"56",e:"40",ok:"a",exp:"Progressao geometrica de razao 2: cada termo e o dobro do anterior. 32 x 2 = 64."},
+  {id:"6527",tipo:'multipla',disc:"Raciocinio Logico",tema:"Sequencias",subtema:"Serie alfanumerica",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Na sequencia A1, B2, C3, D4, qual e o proximo elemento?",a:"E5",b:"D5",c:"E4",d:"F5",e:"E6",ok:"a",exp:"Letra avanca em ordem alfabetica (A B C D E) e numero aumenta de 1 em 1 (1 2 3 4 5). Logo: E5."},
+  {id:"6528",tipo:'multipla',disc:"Informatica",tema:"Seguranca Digital",subtema:"Phishing",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"Phishing e uma tecnica de ataque cibernetico que consiste em:",a:"Enganar o usuario para obter dados sensiveis por meio de mensagens e sites falsos",b:"Bloquear o computador e exigir resgate",c:"Espionar o trafego de rede",d:"Sobrecarregar servidores com requisicoes",e:"Instalar atualizacoes maliciosas",ok:"a",exp:"Phishing (pesca): e-mails, SMS ou sites falsos imitam bancos e empresas para roubar senhas e dados."},
+  {id:"6529",tipo:'multipla',disc:"Informatica",tema:"Seguranca Digital",subtema:"Ransomware",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"Um ransomware e um tipo de malware que:",a:"Criptografa os arquivos da vitima e exige pagamento (resgate) para libera-los",b:"Exibe propagandas nao solicitadas",c:"Espiona as atividades do usuario",d:"Envia e-mails spam",e:"Copia arquivos para um servidor remoto",ok:"a",exp:"Ransomware (ransom=resgate): sequestra dados criptografando-os. O atacante exige criptomoeda para descriptografar."},
+  {id:"6530",tipo:'multipla',disc:"Informatica",tema:"Ferramentas Office",subtema:"Excel - funcoes",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"No Excel, a funcao que calcula a soma de valores em um intervalo condicionado a criterios e:",a:"SOMASE",b:"SOMA",c:"CONT.SE",d:"MEDIA",e:"PROCV",ok:"a",exp:"SOMASE(intervalo;criterio;[intervalo_soma]): soma apenas celulas que atendem a uma condicao especificada."},
+  {id:"6531",tipo:'multipla',disc:"Informatica",tema:"Ferramentas Office",subtema:"Excel - PROCV",dif:"M\u00e9dio",fonte:"Cesgranrio-BB",ano:"2023",xp:15,enunciado:"A funcao PROCV no Excel serve para:",a:"Buscar um valor em uma coluna e retornar um valor correspondente de outra coluna",b:"Calcular a media de um intervalo",c:"Contar valores maiores que zero",d:"Criar graficos automaticamente",e:"Formatar celulas condicionalmente",ok:"a",exp:"PROCV(valor_proc;tabela;num_col;0): busca vertical. Essencial em tabelas de dados bancarios."},
+  {id:"6532",tipo:'multipla',disc:"Informatica",tema:"Internet",subtema:"HTTPS e seguranca",dif:"F\u00e1cil",fonte:"Cesgranrio-BB",ano:"2023",xp:10,enunciado:"A presenca do HTTPS no endereco de um site bancario indica que:",a:"A comunicacao entre o navegador e o servidor e criptografada (protocolo TLS/SSL)",b:"O site e certificado pelo Governo",c:"A velocidade de acesso e maior",d:"O site nao pode ser invadido",e:"O usuario tem acesso gratuito",ok:"a",exp:"HTTPS usa certificado TLS/SSL para criptografar os dados em transito, protegendo senhas e dados bancarios."}
 ];
-
 const ACHIEVEMENTS = [
   { icon:'🔥', title:'7 dias seguidos', desc:'Estudou 7 dias consecutivos', ok:true },
   { icon:'⚡', title:'100 questões',     desc:'Respondeu 100 questões',       ok:true },
@@ -2838,6 +3150,7 @@ function BottomNav({ page, go }) {
   const items = [
     { id:'questoes',  icon:'📝', label:'Questões' },
     { id:'simulados', icon:'🎯', label:'Simulados' },
+    { id:'mentor',    icon:'🤖', label:'Mentor IA' },
     { id:'redacao',   icon:'✍️', label:'Redação' },
     { id:'evolucao',  icon:'📊', label:'Evolução' },
     { id:'perfil',    icon:'👤', label:'Perfil' },
@@ -2846,8 +3159,8 @@ function BottomNav({ page, go }) {
     <nav style={{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:430,background:'#fff',borderTop:'1px solid #e5e7eb',zIndex:99,display:'flex'}}>
       {items.map(it => (
         <button key={it.id} onClick={()=>go(it.id)}
-          style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',padding:'8px 4px',fontSize:11,fontWeight:600,cursor:'pointer',border:'none',background:'none',color: page===it.id?'#163A70':'#9CA3AF',borderTop: page===it.id?'2px solid #38BDF8':'2px solid transparent',transition:'color .2s'}}>
-          <span style={{fontSize:20}}>{it.icon}</span>
+          style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'8px 2px',fontSize:10,fontWeight:600,whiteSpace:'nowrap',cursor:'pointer',border:'none',background:'none',color: page===it.id?'#163A70':'#9CA3AF',borderTop: page===it.id?'2px solid #38BDF8':'2px solid transparent',transition:'color .2s'}}>
+          <span style={{fontSize:19}}>{it.icon}</span>
           {it.label}
         </button>
       ))}
@@ -4164,6 +4477,597 @@ function Admin({ go, auth }) {
 }
 
 /* ───────── APP ROOT ───────── */
+/* ───────── MENTOR IA (chat com Gemini) ───────── */
+const IA_SYSTEM_PROMPT = `Você é o "Mentor IA", o assistente de estudos oficial do aplicativo Aprova IA. Você é um professor particular paciente, didático e motivador, especialista em provas brasileiras.
+
+SEU FOCO É EXCLUSIVAMENTE EDUCAÇÃO E PREPARAÇÃO PARA PROVAS:
+- ENEM e vestibulares (Fuvest, Unicamp, UERJ, UFPR e outros)
+- Concursos públicos, com ênfase em carreiras policiais e militares: Polícia Militar, Polícia Civil, Corpo de Bombeiros, PRF, Polícia Penal e Forças Armadas
+- Conteúdos do Ensino Fundamental e Médio
+
+ÁREAS QUE VOCÊ DOMINA:
+- Linguagens: Língua Portuguesa, Gramática, Interpretação de Texto, Literatura, Redação, Inglês e Espanhol
+- Matemática e suas tecnologias: Aritmética, Álgebra, Geometria, Estatística, Raciocínio Lógico
+- Ciências da Natureza: Física, Química, Biologia
+- Ciências Humanas: História (Brasil e Geral), Geografia, Filosofia, Sociologia, Atualidades
+- Para concursos policiais: Direito Constitucional, Direito Penal, Processual Penal, Direito Administrativo, Legislação Especial (Lei de Drogas, ECA, Maria da Penha, Estatuto do Desarmamento), Direitos Humanos e Legislação de Trânsito
+
+O QUE VOCÊ FAZ QUANDO PEDEM:
+1. Explicar qualquer conteúdo de forma simples, com exemplos do dia a dia.
+2. Criar questões. Para múltipla escolha use SEMPRE este formato: enunciado; alternativas de A) a E); depois "Gabarito: X" e "Explicação:". Para dissertativas, dê a resposta esperada.
+3. Corrigir redações pelo modelo ENEM (as 5 competências, nota de 0 a 1000 e como melhorar).
+4. Montar resumos, mapas mentais em texto e cronogramas de estudo.
+5. Dar estratégias e dicas de prova.
+
+COMO RESPONDER:
+- Sempre em português do Brasil, com linguagem clara e acolhedora.
+- Use **negrito** nos termos-chave e listas com "-" ou números para organizar.
+- Use emojis com moderação para deixar leve (📚 💡 ✅ ⚠️ 🎯).
+- Escreva fórmulas e expressões matemáticas de forma legível em texto puro (ex.: x² + 3x - 4 = 0, raiz quadrada de 16 = 4).
+- Seja completo mas direto; só se estenda bastante quando pedirem muitas questões ou um resumo grande.
+- Termine puxando o próximo passo ("Quer que eu faça mais questões?", "Quer que eu explique de outro jeito?").
+
+REGRA IMPORTANTE: se perguntarem algo totalmente fora de estudos (ou conteúdo impróprio), responda com gentileza que você é o Mentor IA focado nos estudos e traga de volta para o objetivo do aluno (foco atual do aluno: {OBJ}).`;
+
+// Markdown leve -> nós React (negrito + bullets + remove # de títulos; quebras via pre-wrap)
+function fmtIA(text){
+  const clean = (text||'')
+    .replace(/^#{1,6}\s*/gm,'')
+    .replace(/^\s*[\*\-]\s+/gm,'• ');
+  const parts = clean.split(/\*\*/);
+  return parts.map((p,i)=> i%2 ? <strong key={i}>{p}</strong> : <span key={i}>{p}</span>);
+}
+
+/* ════════════ MENTOR IA — BANCO LOCAL (R$0, sem chave) ════════════
+   Tudo aqui roda dentro do próprio app, de graça: gera questões a partir
+   do banco embutido (QS_DEFAULT), monta cronograma, dá o guia de redação
+   ENEM e mostra "o que mais cai" por matéria. A conversa livre / explicações
+   abertas só usam IA externa se IA_PROXY_URL ou GEMINI_API_KEY estiverem
+   definidos — caso contrário o app responde sozinho com o banco local. */
+
+function iaNorm(s){
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+
+const IA_DISC = [
+  {label:'Matemática', discs:['Matemática'], keys:['matematica','calculo','algebra','geometria','aritmetica','trigonometria','estatistica','probabilidade','funcao','funcoes','porcentagem','razao e proporcao','regra de tres','fracao','fracoes','potenciacao','radiciacao','progressao','progressoes','equacao','equacoes','logaritmo','logaritmica','exponencial','matriz','matrizes','geometria plana','geometria espacial','area e perimetro','pitagoras','semelhanca de triangulos','media','mediana','moda','desvio padrao','analise combinatoria','matematica financeira','juro simples','juro composto','juros','inflacao','amortizacao']},
+  {label:'Física',     discs:['Física'],     keys:['fisica','cinematica','mecanica','dinamica','leis de newton','trabalho e energia','impulso','quantidade de movimento','eletricidade','eletrodinamica','eletrostatica','circuitos eletricos','eletromagnetismo','termologia','termodinamica','optica','ondas','ondulatoria','energia','hidrostatica']},
+  {label:'Química',    discs:['Química'],     keys:['quimica','estrutura atomica','estequiometria','organica','inorganica','funcoes inorganicas','atomistica','ligacoes quimicas','solucoes','reacoes quimicas','cinetica quimica','equilibrio quimico','eletroquimica','termoquimica','polimeros','quimica ambiental','quimica organica']},
+  {label:'Biologia',   discs:['Biologia'],   keys:['biologia','genetica','ecologia','citologia','bioquimica','botanica','zoologia','evolucao','fisiologia','fisiologia humana','microbiologia','biotecnologia','saude publica','vacinacao','dna','celula']},
+  {label:'História',   discs:['História'],   keys:['historia','brasil colonia','brasil imperio','republica','era vargas','ditadura militar','movimentos sociais','revolucao francesa','revolucao industrial','guerras mundiais','guerra fria','globalizacao']},
+  {label:'Geografia',  discs:['Geografia'],  keys:['geografia','geopolitica','blocos economicos','urbanizacao','industrializacao','agricultura','questoes ambientais','mudancas climaticas','demografia','migracoes','climatologia','cartografia','conflitos internacionais']},
+  {label:'Filosofia',  discs:['Filosofia'],  keys:['filosofia','filosofia antiga','socrates','platao','aristoteles','filosofia moderna','descartes','locke','rousseau','filosofia contemporanea','etica','politica','cidadania']},
+  {label:'Sociologia', discs:['Sociologia'], keys:['sociologia','cultura','desigualdade social','trabalho','industria cultural','direitos humanos','estado e poder','movimentos sociais']},
+  {label:'Atualidades',discs:['Atualidades'],keys:['atualidades','atual','noticia','noticias','ods','agenda 2030','sustentabilidade','tecnologia','inteligencia artificial','fake news']},
+  {label:'Literatura', discs:['Literatura'], keys:['literatura','escolas literarias','vanguardas europeias','literatura contemporanea','analise de poemas','analise de narrativas','modernismo','romantismo','realismo','barroco','arcadismo']},
+  {label:'Português',  discs:['Língua Portuguesa','Português'], keys:['portugues','lingua portuguesa','gramatica','interpretacao de texto','interpretacao','generos textuais','funcoes da linguagem','figuras de linguagem','variacao linguistica','coesao','coerencia','intertextualidade','denotacao','conotacao','ambiguidade','pontuacao','concordancia','regencia','crase','sintaxe','morfologia','verbo','ortografia']},
+  {label:'Artes',      discs:['Artes'],      keys:['artes','arte','movimentos artisticos','arte moderna','arte contemporanea','critica social','patrimonio cultural','modernismo','barroco','renascimento']},
+  {label:'Inglês',     discs:['Inglês'],     keys:['ingles','english']},
+  {label:'Direito',    discs:['Direito'],    keys:['direito','constituicao','constitucional','direitos fundamentais','administrativo','penal','codigo penal','legislacao','eca','estatuto do desarmamento','lei maria da penha','principios da administracao']},
+  {label:'Bombeiros e Primeiros Socorros', discs:['Conhecimentos Especificos'], keys:['bombeiros','primeiros socorros','rcp','reanimacao','incendio','triangulo do fogo','extintor','salvamento','prevencao de incendio','emergencia']},
+  {label:'Conhecimentos Bancários', discs:['Conhecimentos Bancarios'], keys:['bancario','bancarios','conhecimentos bancarios','banco do brasil','caixa economica','bradesco','santander','sfn','bacen','banco central','cmn','conselho monetario','produtos bancarios','poupanca','cdb','lci','lca','previdencia privada','pgbl','vgbl','fgc','cambio','mercado de capitais','debentures','credito consignado','microcrédito','concurso banco','cesgranrio','pix','ted','doc','selic','compliance bancario','lavagem de dinheiro']},
+  {label:'Raciocínio Lógico', discs:['Raciocinio Logico'], keys:['raciocinio logico','raciocinio logico matematico','raciocinio logico quantitativo','logica proposicional','logica formal','proposicao','silogismo','tabela verdade','sequencia numerica','serie numerica','conjuntos','diagramas logicos','logica matematica']},
+  {label:'Informática', discs:['Informatica'], keys:['informatica','computacao','excel','word','powerpoint','windows','internet','seguranca digital','hardware','software','banco de dados','redes de computadores','lgpd','phishing','ransomware','malware','firewall','nuvem','cloud','https','procv','somase']},
+];
+
+/* ════════════════ CURRÍCULO (grade de conteúdos por matéria) ════════════════
+   Estruturado por grande área → matéria → grupos de subtópicos, exatamente
+   como o conteúdo de vestibulares/ENEM e concursos. Usado tanto na mentoria
+   (responder "o que cai / o que estudar") quanto para orientar a geração de
+   questões por subtópico. */
+const IA_CURRICULO = {
+  'Matemática': { area:'Matemática e suas Tecnologias', grupos:{
+    'Matemática básica':['porcentagem','razão e proporção','regra de três','frações','potenciação e radiciação','equações de 1º e 2º grau'],
+    'Geometria':['geometria plana','área e perímetro','geometria espacial','teorema de Pitágoras','semelhança de triângulos','trigonometria básica'],
+    'Estatística e probabilidade':['média, mediana e moda','desvio padrão','análise de gráficos e tabelas','probabilidade simples','análise combinatória básica'],
+    'Funções':['função do 1º grau','função do 2º grau','função exponencial','função logarítmica'],
+    'Matemática financeira':['juro simples','juro composto','inflação','sistemas de amortização'],
+  }},
+  'Física': { area:'Ciências da Natureza e suas Tecnologias', grupos:{
+    'Mecânica':['cinemática','leis de Newton','trabalho e energia','impulso e quantidade de movimento','hidrostática'],
+    'Física térmica e ondas':['termologia','ondulatória','óptica'],
+    'Eletricidade':['eletrostática','eletrodinâmica','circuitos elétricos'],
+  }},
+  'Química': { area:'Ciências da Natureza e suas Tecnologias', grupos:{
+    'Química geral':['estrutura atômica','ligações químicas','funções inorgânicas','estequiometria','soluções'],
+    'Físico-química':['termoquímica','cinética química','equilíbrio químico','eletroquímica'],
+    'Química orgânica e ambiental':['química orgânica','polímeros','química ambiental'],
+  }},
+  'Biologia': { area:'Ciências da Natureza e suas Tecnologias', grupos:{
+    'Biologia celular e molecular':['citologia','bioquímica'],
+    'Genética e evolução':['genética','evolução'],
+    'Ecologia (ênfase)':['ecologia','questões ambientais'],
+    'Seres vivos e corpo humano':['fisiologia humana','botânica','zoologia'],
+    'Biologia aplicada e saúde':['biotecnologia','saúde pública','vacinação'],
+  }},
+  'História': { area:'Ciências Humanas e suas Tecnologias', grupos:{
+    'História do Brasil':['Brasil colônia','Brasil império','República','Era Vargas','ditadura militar','movimentos sociais'],
+    'História geral':['Revolução Francesa','Revolução Industrial','guerras mundiais','guerra fria','globalização'],
+  }},
+  'Geografia': { area:'Ciências Humanas e suas Tecnologias', grupos:{
+    'Geografia política e econômica':['geopolítica','globalização','conflitos internacionais','blocos econômicos'],
+    'Geografia humana':['urbanização','industrialização','agricultura','demografia','migrações'],
+    'Geografia física e ambiental':['questões ambientais','mudanças climáticas','cartografia'],
+  }},
+  'Filosofia': { area:'Ciências Humanas e suas Tecnologias', grupos:{
+    'História da filosofia':['filosofia antiga (Sócrates, Platão, Aristóteles)','filosofia moderna (Descartes, Locke, Rousseau)','filosofia contemporânea'],
+    'Filosofia prática':['ética','política','cidadania'],
+  }},
+  'Sociologia': { area:'Ciências Humanas e suas Tecnologias', grupos:{
+    'Cultura e sociedade':['cultura','indústria cultural','desigualdade social'],
+    'Cidadania e política':['cidadania','movimentos sociais','direitos humanos','estado e poder'],
+    'Trabalho':['trabalho'],
+  }},
+  'Português': { area:'Linguagens, Códigos e suas Tecnologias', grupos:{
+    'Leitura e interpretação':['interpretação de texto','gêneros textuais','funções da linguagem','intertextualidade'],
+    'Semântica e estilística':['figuras de linguagem','denotação e conotação','ambiguidade','variação linguística'],
+    'Texto e gramática':['coesão e coerência','pontuação e efeitos de sentido','concordância e regência'],
+  }},
+  'Literatura': { area:'Linguagens, Códigos e suas Tecnologias', grupos:{
+    'Movimentos literários':['escolas literárias','vanguardas europeias','literatura contemporânea'],
+    'Análise literária':['análise de poemas','análise de narrativas'],
+  }},
+  'Artes': { area:'Linguagens, Códigos e suas Tecnologias', grupos:{
+    'Movimentos e história da arte':['movimentos artísticos','arte moderna e contemporânea'],
+    'Arte e sociedade':['arte como forma de crítica social','patrimônio cultural'],
+  }},
+  'Atualidades': { area:'Atualidades e Conhecimentos Gerais', grupos:{
+    'Temas atuais':['meio ambiente e mudanças climáticas','tecnologia e inteligência artificial','direitos humanos','geopolítica e conflitos'],
+    'Sustentabilidade':['Agenda 2030 e ODS'],
+  }},
+  'Direito': { area:'Carreiras Policiais e Militares', grupos:{
+    'Direito constitucional':['Constituição de 1988','direitos e garantias fundamentais','organização do Estado'],
+    'Direito administrativo':['princípios da administração (LIMPE)','atos administrativos'],
+    'Direito penal e legislação':['Código Penal','ECA','Estatuto do Desarmamento','Lei Maria da Penha','Lei de Drogas'],
+  }},
+  'Bombeiros e Primeiros Socorros': { area:'Carreiras Policiais e Militares', grupos:{
+    'Primeiros socorros':['RCP (reanimação cardiopulmonar)','vítima inconsciente','hemorragias e fraturas','acionamento do socorro (192/193)'],
+    'Prevenção e combate a incêndio':['triângulo do fogo','classes de incêndio','agentes extintores','salvamento'],
+  }},
+  'Conhecimentos Bancários': { area:'Concursos Bancários (Cesgranrio/FCC/CESPE)', grupos:{
+    'Sistema Financeiro Nacional (SFN)':['Conselho Monetário Nacional (CMN)','Banco Central do Brasil (BACEN)','Comissão de Valores Mobiliários (CVM)','SUSEP e PREVIC','estrutura do SFN'],
+    'Produtos e serviços bancários':['conta corrente e conta poupança','CDB, LCI e LCA','previdência privada (PGBL e VGBL)','seguros bancários','cartão de crédito e débito','PIX, TED, DOC e cheque'],
+    'Mercado de capitais e câmbio':['ações ordinárias e preferenciais','debêntures e fundos de investimento','taxa de câmbio','mercado primário e secundário'],
+    'Crédito e cobrança':['CDC (crédito direto ao consumidor)','crédito consignado','microcrédito','FGTS e garantias'],
+    'Compliance e regulação':['LGPD (Lei 13.709/2018)','prevenção à lavagem de dinheiro (PLD/COAF)','ética e conduta bancária','sigilo bancário (LC 105/2001)'],
+    'Vendas e atendimento bancário':['técnicas de vendas','necessidades do cliente','fidelização','canais digitais'],
+  }},
+  'Raciocínio Lógico': { area:'Concursos Bancários (Cesgranrio/FCC/CESPE)', grupos:{
+    'Lógica proposicional':['proposições e conectivos','tabela-verdade','negação, conjunção e disjunção','condicional e bicondicional'],
+    'Argumentação e deduções':['silogismos','inferências lógicas','diagramas lógicos (Euler-Venn)'],
+    'Raciocínio matemático':['sequências numéricas','problemas de contagem','porcentagem aplicada','interpretação de gráficos e tabelas'],
+  }},
+  'Informática': { area:'Concursos Bancários (Cesgranrio/FCC/CESPE)', grupos:{
+    'Ferramentas Office':['Microsoft Excel (fórmulas, funções, tabelas dinâmicas)','Microsoft Word (formatação, mala direta)','Microsoft PowerPoint'],
+    'Internet e segurança':['navegadores e e-mail','phishing, malware e ransomware','backup e criptografia','HTTPS e certificados digitais'],
+    'Conceitos gerais de TI':['hardware e software','sistemas operacionais (Windows/Linux)','redes (LAN, WAN, Wi-Fi)','banco de dados relacional'],
+  }},
+};
+
+// Texto resumido da grade, para injetar no system prompt da IA turbo.
+function iaCurriculoTexto(){
+  const areas={};
+  for(const mat in IA_CURRICULO){
+    const c=IA_CURRICULO[mat];
+    (areas[c.area]=areas[c.area]||[]).push(mat);
+  }
+  let out='GRADE DE CONTEÚDOS QUE VOCÊ DOMINA (use para gerar questões e orientar estudos):\n';
+  for(const a in areas){
+    out+='\n## '+a+'\n';
+    for(const mat of areas[a]){
+      const g=IA_CURRICULO[mat].grupos;
+      const subs=[];
+      for(const k in g) subs.push(...g[k]);
+      out+='- '+mat+': '+subs.join('; ')+'\n';
+    }
+  }
+  return out;
+}
+
+// Lista achatada de subtópicos de uma matéria (label do IA_DISC).
+function iaSubsList(label){
+  const c=IA_CURRICULO[label];
+  if(!c) return [];
+  const out=[];
+  for(const g in c.grupos) out.push(...c.grupos[g]);
+  return out;
+}
+
+// Detecta se o texto menciona um subtópico específico. Retorna o subtópico
+// (string original) ou null. Ignora o que está entre parênteses.
+function iaFindSubtopic(text,disc){
+  const n=iaNorm(text);
+  const labels = disc ? [disc.label] : Object.keys(IA_CURRICULO);
+  let best=null,bestLen=0;
+  for(const label of labels){
+    for(const sub of iaSubsList(label)){
+      const clean=iaNorm(sub.replace(/\(.*?\)/g,'')).trim();
+      const words=clean.split(/\s+/).filter(w=>w.length>3);
+      const hit = n.includes(clean) || (words.length && words.every(w=>n.includes(w)));
+      if(hit && clean.length>bestLen){best=sub;bestLen=clean.length;}
+    }
+  }
+  return best;
+}
+
+// Menu das grandes áreas e matérias.
+function iaAreaLista(){
+  const areas={};
+  for(const mat in IA_CURRICULO){
+    const c=IA_CURRICULO[mat];
+    (areas[c.area]=areas[c.area]||[]).push(mat);
+  }
+  let out='📚 **Tudo que eu posso te ensinar e cobrar em questões:**\n\n';
+  for(const a in areas){
+    out+='**'+a+'**\n'+areas[a].map(m=>'• '+m).join('\n')+'\n\n';
+  }
+  out+='💡 Peça, por exemplo: *"conteúdo de Matemática"*, *"o que cai em Biologia"* ou *"10 questões de Direito"*.';
+  return out;
+}
+
+// Responde "o que estudar / o que cai / conteúdo / grade" de uma matéria.
+function iaConteudo(text){
+  const n=iaNorm(text);
+  if(!/(conteud|\bareas?\b|\btopico|subtopico|o que estudar|o que (voce |vc )?(ensina|cobre|cai)|que materias|quais materias|todas as materias|\bgrade\b|programa|edital|curriculo)/.test(n)) return null;
+  const d=iaDetectDisc(text);
+  if(!d || !IA_CURRICULO[d.label]) return iaAreaLista();
+  const c=IA_CURRICULO[d.label];
+  let out='📘 **'+d.label+'** — _'+c.area+'_\n\nPrincipais áreas e subtópicos que eu ensino e cobro em questões:\n';
+  for(const g in c.grupos){
+    out+='\n**'+g+'**\n'+c.grupos[g].map(s=>'• '+s).join('\n')+'\n';
+  }
+  // Reforça com os temas que já existem no banco offline
+  const discSet=new Set(d.discs);
+  const temas={};
+  for(const q of QS_DEFAULT){ if(discSet.has(q.disc) && q.tema){ temas[q.tema]=(temas[q.tema]||0)+1; } }
+  const top=Object.keys(temas).sort((a,b)=>temas[b]-temas[a]).slice(0,6);
+  if(top.length) out+='\n📝 No banco offline já tenho questões de: '+top.join(', ')+'.';
+  out+='\n\n💡 Quer treinar? Peça *"10 questões de '+d.label+'"* ou *"questões sobre '+(iaSubsList(d.label)[0]||'um tema')+'"*.';
+  return out;
+}
+
+function iaDetectDisc(text){
+  const n=iaNorm(text);
+  let best=null,bestLen=0;
+  for(const d of IA_DISC){
+    for(const k of d.keys){
+      const re=new RegExp('(^|[^a-z])'+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^a-z]|$)');
+      if(re.test(n)&&k.length>bestLen){best=d;bestLen=k.length;}
+    }
+  }
+  return best;
+}
+
+function iaShuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function iaFmtQ(q,n){
+  const head=`**Questão ${n}** · ${q.disc} · ${q.dif}`+(q.fonte?` · ${q.fonte}`:'')+(q.ano?` ${q.ano}`:'');
+  if(q.tipo==='dissertativa'){
+    return head+`\n\n${q.enunciado}\n\n✅ **Resposta esperada:** ${q.resposta||'—'}`+(q.exp?`\n💡 ${q.exp}`:'');
+  }
+  const alts=['a','b','c','d','e'].filter(L=>q[L]).map(L=>`${L.toUpperCase()}) ${q[L]}`).join('\n');
+  return head+`\n\n${q.enunciado}\n\n${alts}\n\n✅ **Gabarito: ${(q.ok||'a').toUpperCase()}**`+(q.exp?`\n💡 ${q.exp}`:'');
+}
+
+// Gera questões reais a partir do banco embutido. Retorna texto ou null.
+function iaGenQuestions(text){
+  const n=iaNorm(text);
+  const wantsQ=/(quest(ao|oes)|exercici|simulad)/.test(n)
+    || /\b\d+\s*(quest|exerc|pergunt)/.test(n)
+    || /(me\s*de|cria|crie|gera|gere|faca|faz|monta|monte)\s*\d+\s*(quest|exerc|pergunt)/.test(n);
+  if(!wantsQ) return null;
+  let num=5;
+  const m=n.match(/(\d+)\s*(quest|exerc|pergunt|simulad)/)||n.match(/\b(\d{1,2})\b/);
+  if(m) num=Math.max(1,Math.min(10,parseInt(m[1],10)));
+  const d=iaDetectDisc(n);
+  let dif=null;
+  if(/\bfaceis?\b|\bfacil\b/.test(n)) dif='Fácil';
+  else if(/\bdificeis?\b|\bdificil\b|avancad/.test(n)) dif='Difícil';
+  else if(/\bmedi/.test(n)) dif='Médio';
+  const wantDiss=/dissertativ|discursiv|aberta/.test(n);
+
+  let pool=QS_DEFAULT.filter(q=> wantDiss? q.tipo==='dissertativa' : q.tipo==='multipla');
+  if(d) pool=pool.filter(q=> d.discs.includes(q.disc));
+  let tema=null, want=null;
+  const mt=n.match(/sobre\s+(.+)$/);
+  if(mt) want=iaNorm(mt[1]).replace(/[?.!]+$/,'');
+  if(!want){ const sub=iaFindSubtopic(n,d); if(sub) want=iaNorm(sub); }
+  if(want){
+    const ws=want.split(' ').filter(w=>w.length>3);
+    const f=pool.filter(q=>{ const hay=iaNorm((q.tema||'')+' '+(q.subtema||'')+' '+(q.enunciado||'')); return hay.includes(want) || (ws.length && ws.every(w=>hay.includes(w))); });
+    if(f.length>=1){ pool=f; tema=want; }
+  }
+  let withDif = dif? pool.filter(q=>q.dif===dif):pool;
+  if(withDif.length<num) withDif=pool;
+  if(!withDif.length){
+    if(!d) return null;
+    return `Ainda não tenho questões${dif?` ${dif.toLowerCase()}`:''} de **${d.label}**${tema?` sobre "${tema}"`:''} no banco offline. 😕\n\nMas a IA turbo (proxy) gera questões desse assunto! Enquanto isso, tenta *"10 questões de ${d.label}"*.`;
+  }
+  const pick=iaShuffle(withDif).slice(0,num);
+  const header=`Aqui ${pick.length>1?'estão':'está'} **${pick.length} ${pick.length>1?'questões':'questão'}**`+(d?` de **${d.label}**`:' (mix de matérias)')+(dif?` · nível ${dif}`:'')+(tema?` · sobre "${tema}"`:'')+`: 📝`;
+  const body=pick.map((q,i)=>iaFmtQ(q,i+1)).join('\n\n──────────\n\n');
+  let tip=d? `\n\n💡 Quer mais? Peça *"mais ${num} questões de ${d.label}"* ou *"explique a questão 1"*.`
+            : `\n\n💡 Para focar numa matéria, peça por exemplo *"${num} questões de Matemática"*.`;
+  if(tema && pick.length<num) tip=`\n\n📌 Tenho ${pick.length} questão(ões) de "${tema}" no banco offline. Para gerar mais sobre esse subtópico, ative a IA turbo.`+tip;
+  return header+'\n\n'+body+tip;
+}
+
+// Guia de redação ENEM + temas prováveis. Retorna texto ou null.
+function iaRedacao(text){
+  const n=iaNorm(text);
+  if(!/redac|dissertac|5 competencias|cinco competencias|texto dissertativo|nota 1000|proposta de interven/.test(n)) return null;
+  if(/tema/.test(n)){
+    return `🎯 **Temas prováveis de redação (eixos que mais voltam)**
+
+- **Tecnologia e sociedade:** uso de IA, desinformação/fake news, vícios em telas, privacidade de dados.
+- **Saúde:** saúde mental, acesso ao SUS, automedicação, alimentação.
+- **Cidadania e direitos:** valorização de grupos vulneráveis, acessibilidade, combate ao preconceito.
+- **Educação:** evasão escolar, educação digital, leitura no Brasil.
+- **Meio ambiente:** crise climática, consumo consciente, saneamento.
+- **Trabalho e economia:** uberização, desemprego jovem, trabalho informal.
+
+💡 Treine pelo menos 1 por semana. Quer a **estrutura** e as **5 competências**? Peça *"como estruturar a redação?"*.`;
+  }
+  return `📝 **Guia rápido da Redação ENEM** (texto dissertativo-argumentativo)
+
+**Estrutura ideal (4 a 5 parágrafos):**
+- **Introdução:** apresente o tema + sua tese (seu ponto de vista) + os 2 argumentos que vai usar.
+- **Desenvolvimento 1:** 1º argumento + repertório (lei, dado, autor, fato histórico) + análise.
+- **Desenvolvimento 2:** 2º argumento + repertório diferente + análise.
+- **Conclusão:** retome a tese e traga a **proposta de intervenção** completa.
+
+**Proposta de intervenção (precisa ter 5 elementos):**
+1. **Agente** (quem faz) · 2. **Ação** (o que faz) · 3. **Meio/modo** (como) · 4. **Finalidade** (para quê) · 5. **Detalhamento** de um dos elementos.
+
+**As 5 competências (0 a 200 cada · total 1000):**
+- **C1 – Norma culta:** gramática, ortografia e pontuação.
+- **C2 – Tema + repertório:** não fugir do tema e usar repertório legitimado.
+- **C3 – Argumentação:** defender ideias de forma organizada e autoral.
+- **C4 – Coesão:** conectivos e progressão (além disso, portanto, dessa forma…).
+- **C5 – Proposta de intervenção:** detalhada e respeitando os direitos humanos.
+
+⚠️ **O que derruba/zera:** fugir do tema, ferir os direitos humanos, menos de 7 linhas ou copiar os textos motivadores.
+
+📚 **Repertório coringa:** Constituição de 1988, ODS da ONU, dados do IBGE, pensadores (Bauman, Hannah Arendt, Darcy Ribeiro).
+
+💡 Quer ideias de tema? Peça *"temas prováveis de redação"*.`;
+}
+
+// Monta um cronograma semanal simples. Retorna texto ou null.
+function iaCronograma(text,obj){
+  const n=iaNorm(text);
+  if(!/cronograma|plano de estudo|rotina de estudo|organizar.*estud|como estudar|me organiz|grade de estudo/.test(n)) return null;
+  let horas=3;
+  const mh=n.match(/(\d+)\s*(h\b|hora)/);
+  if(mh) horas=Math.max(1,Math.min(12,parseInt(mh[1],10)));
+  const isConc=/(policia|militar|pm\b|pc\b|prf|bombeir|penal|concurso|embarca|marinha|exercito|aeronautica|soldado)/.test(n+' '+iaNorm(obj||''));
+  const dias = isConc ? {
+    'Segunda':['Português','Raciocínio Lógico/Matemática'],
+    'Terça':['Direito Constitucional','Atualidades'],
+    'Quarta':['Direito Penal','Português (questões)'],
+    'Quinta':['Direito Administrativo','Matemática (questões)'],
+    'Sexta':['Legislação Especial','Redação/Discursiva'],
+    'Sábado':['Simulado completo + correção'],
+    'Domingo':['Revisão dos erros da semana + descanso'],
+  } : {
+    'Segunda':['Matemática','Português'],
+    'Terça':['Física','Redação'],
+    'Quarta':['Química','História'],
+    'Quinta':['Biologia','Geografia'],
+    'Sexta':['Matemática (questões)','Filosofia/Sociologia'],
+    'Sábado':['Simulado + Redação'],
+    'Domingo':['Revisão dos erros da semana + descanso'],
+  };
+  const bloco=Math.max(1,Math.round((horas*60)/ (horas>=4?3:2)));
+  let body=Object.entries(dias).map(([dia,mats])=>`**${dia}** — ${mats.join('  •  ')}`).join('\n');
+  return `📅 **Cronograma de estudos (${horas}h por dia)** — foco: **${obj||'ENEM'}**
+
+${body}
+
+**Como dividir o seu dia (${horas}h):**
+- Blocos de estudo de ~${bloco} min com 10 min de intervalo entre eles.
+- Sempre termine o bloco resolvendo **questões** do assunto (a prática fixa muito mais que só ler).
+- Anote os erros num caderno; o domingo é para revisar SÓ esses erros.
+
+💡 Quer questões para encaixar no cronograma? Peça *"10 questões de Matemática"*. Quer mais/menos horas? É só dizer (ex.: *"cronograma de 5 horas"*).`;
+}
+
+// "O que mais cai" por matéria — calculado a partir do banco real. Retorna texto ou null.
+function iaResumo(text){
+  const n=iaNorm(text);
+  if(!/(o que (mais )?cai|assuntos? que (mais )?caem|temas? que (mais )?caem|resumo|principais (temas|assuntos)|mais cobrad|mais important)/.test(n)) return null;
+  const d=iaDetectDisc(n);
+  if(!d){
+    return `📚 Posso te mostrar **o que mais cai** em cada matéria! Me diga qual:\n\n`+IA_DISC.map(x=>'• '+x.label).join('\n')+`\n\nEx.: *"o que mais cai em Biologia?"*`;
+  }
+  const subset=QS_DEFAULT.filter(q=>d.discs.includes(q.disc));
+  if(!subset.length) return null;
+  const cnt={};
+  subset.forEach(q=>{const t=(q.tema||'').trim();if(t)cnt[t]=(cnt[t]||0)+1;});
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(!top.length) return null;
+  const list=top.map((e,i)=>`${i+1}. **${e[0]}** — ${e[1]} questõe${e[1]>1?'s':''} no app`).join('\n');
+  return `📊 **${d.label} — o que mais cai** (com base nas ${subset.length} questões do app):\n\n${list}\n\n💡 Bora praticar? Peça *"10 questões de ${d.label}"* ou *"explique ${top[0][0]}"*.`;
+}
+
+// Roteador determinístico (R$0). Retorna texto pronto ou null.
+function localAnswer(text,ctx){
+  return iaGenQuestions(text)
+      || iaCronograma(text,ctx&&ctx.obj)
+      || iaRedacao(text)
+      || iaConteudo(text)
+      || iaResumo(text)
+      || null;
+}
+
+// Modo degradado de "explicar": acha no banco uma questão do assunto pedido.
+function iaBankExplain(text){
+  const n=iaNorm(text);
+  const stop=new Set(['explique','explica','explicar','explicame','sobre','como','funciona','que','qual','quais','para','pra','uma','com','dos','das','por','favor','tema','assunto','materia','isso','meu','minha','quero','saber','entender','sei','nao']);
+  const words=n.split(/[^a-z0-9]+/).filter(w=>w.length>3&&!stop.has(w));
+  if(!words.length) return null;
+  let best=null,bestScore=0;
+  for(const q of QS_DEFAULT){
+    const hay=iaNorm((q.tema||'')+' '+(q.subtema||'')+' '+(q.enunciado||''));
+    let sc=0; for(const w of words){ if(hay.indexOf(w)>=0) sc++; }
+    if(sc>bestScore){bestScore=sc;best=q;}
+  }
+  if(!best||bestScore<2) return null;
+  return `Sobre **${best.tema||best.disc}**, aqui vai um exemplo do nosso banco já com a explicação — isso te dá uma boa base: 💡\n\n`+iaFmtQ(best,1)+`\n\n📌 Quer treinar mais? Peça *"questões de ${best.disc}"*.`;
+}
+
+// Mensagem amigável quando não há IA aberta e nada local casou.
+function iaFallback(){
+  return `Boa! 🙌 Por aqui eu já te ajudo **na hora e de graça** com:\n\n• 📝 **Questões** — ex.: *"10 questões de Matemática nível médio"*\n• 📊 **O que mais cai** — ex.: *"o que mais cai em Biologia?"*\n• ✍️ **Redação ENEM** — ex.: *"como estruturar a redação?"* ou *"temas prováveis de redação"*\n• 📅 **Cronograma** — ex.: *"monte um cronograma de 3 horas por dia"*\n\nÉ só pedir de um desses jeitos que eu já respondo! 🚀`;
+}
+
+function IAMentor({ auth }){
+  const nome = (auth&&auth.user&&auth.user.name?auth.user.name:'').split(' ')[0];
+  const obj  = (auth&&auth.user&&auth.user.objetivo)||'ENEM';
+  const greeting = {role:'model',text:`Olá${nome?', '+nome:''}! 👋 Sou o seu **Mentor IA** do Aprova IA.\n\nJá consigo te ajudar **na hora**: **gerar questões**, montar **cronograma**, dar o **guia de redação ENEM** e mostrar **o que mais cai** em cada matéria. Vi que seu foco é **${obj}**.\n\nÉ só pedir ou tocar numa das sugestões abaixo. 🚀`};
+
+  const [messages,setMessages]=useState(()=>{
+    try{const s=JSON.parse(localStorage.getItem('ap_ia_chat'));if(Array.isArray(s)&&s.length)return s;}catch(e){}
+    return [greeting];
+  });
+  const [input,setInput]=useState('');
+  const [loading,setLoading]=useState(false);
+  const activeKey=GEMINI_API_KEY||localStorage.getItem('ap_gemini_key')||'';
+  const hasLLM=!!(IA_PROXY_URL||activeKey);
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{try{localStorage.setItem('ap_ia_chat',JSON.stringify(messages.slice(-40)));}catch(e){}},[messages]);
+  useEffect(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;},[messages,loading]);
+
+  const quick=[
+    {l:'📚 O que você ensina?',         p:'Quais são todas as matérias e conteúdos que você cobre?'},
+    {l:'✍️ Guia de redação ENEM',      p:'Como estruturar a redação do ENEM e quais são as 5 competências?'},
+    {l:'🔢 10 questões de Matemática',  p:'Me dê 10 questões de Matemática'},
+    {l:'⚖️ 5 questões de Direito (PM/PC)', p:'Crie 5 questões de Direito'},
+    {l:'🚒 Questões de primeiros socorros', p:'Me dê 5 questões de primeiros socorros e prevenção de incêndio'},
+    {l:'🧬 O que mais cai em Biologia', p:'O que mais cai em Biologia?'},
+    {l:'📐 Conteúdo de Matemática',     p:'Conteúdo de Matemática'},
+    {l:'📅 Cronograma de estudos',     p:'Monte um cronograma de estudos de 3 horas por dia'},
+  ];
+
+  const callLLM = async (msgs) => {
+    let hist = msgs.filter((m,i)=>!(i===0&&m.role==='model')).slice(-16)
+                   .map(m=>({role:m.role==='model'?'model':'user',parts:[{text:m.text}]}));
+    while(hist.length&&hist[0].role==='model') hist.shift();
+    const sys=(IA_SYSTEM_PROMPT+'\n\n'+iaCurriculoTexto()).replace('{OBJ}',obj);
+    // Caminho 1: proxy do dono (chave escondida no servidor) — aluno não precisa de nada.
+    if(IA_PROXY_URL){
+      const r=await fetch(IA_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:sys,contents:hist})});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error((data&&(data.error&&data.error.message||data.error))||('Erro '+r.status));
+      const cand=data.candidates&&data.candidates[0];
+      const txt=data.text||(cand&&cand.content&&cand.content.parts?cand.content.parts.map(p=>p.text||'').join(''):'');
+      return txt||'Hmm, não consegui gerar uma resposta agora. Tente reformular.';
+    }
+    // Caminho 2: chave direta (modo de teste do dono no próprio aparelho).
+    const url='https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent?key='+encodeURIComponent(activeKey);
+    const body={system_instruction:{parts:[{text:sys}]},contents:hist,generationConfig:{temperature:0.7,topP:0.95,maxOutputTokens:2048}};
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await r.json();
+    if(!r.ok) throw new Error((data&&data.error&&data.error.message)||('Erro HTTP '+r.status));
+    const cand=data.candidates&&data.candidates[0];
+    let txt=(cand&&cand.content&&cand.content.parts)?cand.content.parts.map(p=>p.text||'').join(''):'';
+    if(!txt){
+      if(data.promptFeedback&&data.promptFeedback.blockReason) return '⚠️ Sua mensagem foi bloqueada pelo filtro de segurança. Tente reformular a pergunta.';
+      return 'Hmm, não consegui gerar uma resposta agora. Tente reformular ou enviar de novo.';
+    }
+    return txt;
+  };
+
+  const send = async (preset) => {
+    const q=(preset!=null?preset:input).trim();
+    if(!q||loading) return;
+    const next=[...messages,{role:'user',text:q}];
+    setMessages(next); setInput('');
+    // 1) Banco local (R$0, instantâneo): questões, cronograma, redação, "o que mais cai".
+    const local=localAnswer(q,{obj,nome});
+    if(local){
+      setMessages(m=>[...m,{role:'model',text:local}]);
+      if(auth&&auth.addXP) auth.addXP(2);
+      return;
+    }
+    // 2) IA aberta (proxy do dono ou chave) — só se configurada.
+    if(hasLLM){
+      setLoading(true);
+      try{
+        const ans=await callLLM(next);
+        setMessages(m=>[...m,{role:'model',text:ans}]);
+        if(auth&&auth.addXP) auth.addXP(2);
+      }catch(err){
+        const be=iaBankExplain(q);
+        setMessages(m=>[...m,{role:'model',text: be || ('⚠️ Não consegui falar com a IA agora ('+((err&&err.message)||'erro')+').\n\n'+iaFallback())}]);
+      }
+      setLoading(false);
+      return;
+    }
+    // 3) Sem IA aberta: tenta explicar pelo banco; senão orienta com exemplos.
+    const be=iaBankExplain(q);
+    setMessages(m=>[...m,{role:'model',text: be || iaFallback()}]);
+    if(be&&auth&&auth.addXP) auth.addXP(2);
+  };
+
+  const clearChat=()=>{setMessages([greeting]);try{localStorage.removeItem('ap_ia_chat');}catch(e){}};
+
+  return (
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#0B1220'}}>
+      <div style={{background:'#163A70',color:'#fff',padding:'38px 16px 12px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:38,height:38,borderRadius:'50%',background:'linear-gradient(135deg,#38BDF8,#0EA5E9)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>🤖</div>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,lineHeight:1.1}}>Mentor IA</div>
+            <div style={{fontSize:11,color:'rgba(255,255,255,.6)'}}>{loading?'digitando…':'online • pronto pra ajudar'}</div>
+          </div>
+        </div>
+        <button onClick={clearChat} title="Limpar conversa" style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'none',borderRadius:10,padding:'7px 11px',fontSize:12,fontWeight:700,cursor:'pointer'}}>Limpar</button>
+      </div>
+
+      <div ref={scrollRef} style={{flex:1,overflowY:'auto',padding:'14px 12px',background:'#0B1220'}}>
+        {messages.map((m,i)=>{
+          const mine=m.role==='user';
+          return (
+            <div key={i} style={{display:'flex',justifyContent:mine?'flex-end':'flex-start',marginBottom:10}}>
+              <div style={{maxWidth:'86%',padding:'10px 13px',borderRadius:16,fontSize:14,lineHeight:1.55,whiteSpace:'pre-wrap',wordBreak:'break-word',background:mine?'#2563EB':'#0F2040',color:mine?'#fff':'#E2E8F0',borderBottomRightRadius:mine?4:16,borderBottomLeftRadius:mine?16:4,border:mine?'none':'1px solid #1A3050'}}>
+                {mine?m.text:fmtIA(m.text)}
+              </div>
+            </div>
+          );
+        })}
+        {loading && (
+          <div style={{display:'flex',justifyContent:'flex-start',marginBottom:10}}>
+            <div style={{padding:'12px 16px',borderRadius:16,background:'#0F2040',border:'1px solid #1A3050',display:'flex',gap:5}}>
+              {[0,1,2].map(d=><span key={d} className="pulse" style={{width:7,height:7,borderRadius:'50%',background:'#38BDF8',animationDelay:(d*0.2)+'s'}}/>)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {messages.length<=1 && !loading && (
+        <div style={{flexShrink:0,padding:'4px 10px 8px',display:'flex',gap:8,overflowX:'auto',background:'#0B1220'}}>
+          {quick.map((q,i)=>(
+            <button key={i} onClick={()=>send(q.p)} style={{flexShrink:0,whiteSpace:'nowrap',background:'#0F2040',color:'#7DD3FC',border:'1px solid #1A3050',borderRadius:999,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer'}}>{q.l}</button>
+          ))}
+        </div>
+      )}
+
+      <div style={{flexShrink:0,display:'flex',gap:8,alignItems:'flex-end',padding:'10px 12px',marginBottom:58,background:'#080F1E',borderTop:'1px solid #1A3050'}}>
+        <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} rows={1} placeholder="Pergunte qualquer coisa…" style={{flex:1,resize:'none',maxHeight:120,border:'1px solid #1A3050',borderRadius:18,padding:'11px 14px',fontSize:14,lineHeight:1.4,background:'#0F2040',color:'#E2E8F0',fontFamily:'inherit'}}/>
+        <button onClick={()=>send()} disabled={!input.trim()||loading} style={{flexShrink:0,width:44,height:44,borderRadius:'50%',border:'none',cursor:(!input.trim()||loading)?'default':'pointer',fontSize:18,background:(!input.trim()||loading)?'#1A3050':'linear-gradient(135deg,#38BDF8,#0EA5E9)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>➤</button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const { page, go } = useRouter();
   const auth = useAuth();
@@ -4185,6 +5089,7 @@ function App() {
       case 'onboarding':      return auth.user ? <Onboarding go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'questoes':        return auth.user ? <Questoes go={go}/> : <Login go={go} auth={auth}/>;
       case 'simulados':       return auth.user ? <Simulados go={go}/> : <Login go={go} auth={auth}/>;
+      case 'mentor':          return auth.user ? <IAMentor auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'redacao':         return auth.user ? <Redacao go={go}/> : <Login go={go} auth={auth}/>;
       case 'evolucao':        return auth.user ? <Evolucao go={go}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
