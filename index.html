@@ -110,7 +110,7 @@ function useRouter(){
 }
 
 /* ══════════════════════ AUTH ══════════════════════ */
-const DEF={name:'',email:'',objetivo:'ENEM',ano:'2025',curso:'',horas:'2',materias:[],nivel:'Intermediário',escola:'Escola Pública',horario:'Noite',estilo:'Sozinho',motivador:'Aprovação',plano:'free',xp:0,streak:1,lastLogin:''};
+const DEF={name:'',email:'',objetivo:'ENEM',ano:'2025',curso:'',horas:'2',materias:[],nivel:'Intermediário',escola:'Escola Pública',horario:'Noite',estilo:'Sozinho',motivador:'Aprovação',xp:0,streak:1,lastLogin:''};
 function useAuth(){
   const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('ap_user'))||null;}catch(e){return null;}});
   const save=u=>{setUser(u);localStorage.setItem('ap_user',JSON.stringify(u));};
@@ -3055,7 +3055,6 @@ const ACHIEVEMENTS = [
   { icon:'🎯', title:'Mestre em Mat',   desc:'90%+ de acerto em Matemática', ok:false },
   { icon:'📚', title:'Explorador',      desc:'Estudou todas as disciplinas',  ok:false },
   { icon:'🏆', title:'Nota 900',        desc:'Simulado acima de 900 pts',    ok:false },
-  { icon:'🌟', title:'Premium',         desc:'Assinou o plano Premium',       ok:false },
 ];
 
 /* ───────── UI PRIMITIVES ───────── */
@@ -4264,7 +4263,7 @@ function Perfil({ go, auth }) {
             <div style={{flex:1}}>
               {edit ? <input style={{fontSize:17,fontWeight:700,borderBottom:'2px solid #163A70',border:'none',background:'transparent',color:'#163A70',width:'100%',padding:'2px 0'}} value={name} onChange={e=>setName(e.target.value)}/> : <p style={{fontSize:17,fontWeight:700,color:'#163A70',margin:0}}>{u.name}</p>}
               <p style={{fontSize:13,color:'#9CA3AF',margin:'2px 0 6px'}}>{u.email}</p>
-              <Chip color={u.plano==='premium'?'gold':'gray'}>{u.plano==='premium'?'Premium ⭐':'Plano Gratuito'}</Chip>
+              <Chip color="blue">✅ Acesso completo</Chip>
             </div>
           </div>
           {edit ? (
@@ -4318,17 +4317,6 @@ function Perfil({ go, auth }) {
           {!plano && !loading && <p style={{color:'#9CA3AF',fontSize:13,margin:'8px 0 0'}}>Gere um plano personalizado com IA baseado no seu perfil.</p>}
         </Card>
 
-        {/* Upgrade */}
-        {u.plano!=='premium' && (
-          <Card className="mb-3">
-            <div style={{background:'linear-gradient(135deg,#163A70,#0D2548)',borderRadius:14,padding:'16px',color:'#fff',marginBottom:12,textAlign:'center'}}>
-              <p style={{fontSize:12,color:'rgba(255,255,255,.6)',margin:0}}>Desbloqueie tudo</p>
-              <p style={{fontSize:20,fontWeight:900,margin:'4px 0',color:'#38BDF8'}}>Premium</p>
-              <p style={{fontSize:12,color:'rgba(255,255,255,.7)',margin:0}}>Questões ilimitadas · IA avançada · Simulados completos</p>
-            </div>
-            <Btn v="gold" full={true} onClick={()=>go('plano')}>Ver planos →</Btn>
-          </Card>
-        )}
 
         <Btn v="danger" full={true} onClick={()=>{auth.logout();go('login');}}>Sair da conta</Btn>
       </div>
@@ -4336,46 +4324,6 @@ function Perfil({ go, auth }) {
   );
 }
 
-/* ───────── PLANOS ───────── */
-function Plano({ go, auth }) {
-  const plans = [
-    { id:'mensal', icon:'📅', name:'Mensal', price:'R$ 29,90', period:'/mês', popular:false,
-      feats:['Questões ilimitadas','Simulados completos','IA para redações','Plano de estudos IA','Relatórios detalhados'] },
-    { id:'anual', icon:'🏆', name:'Anual', price:'R$ 199,90', period:'/ano', popular:true, badge:'Mais popular • 44% OFF',
-      feats:['Tudo do plano mensal','Suporte prioritário','Acesso antecipado','Gabarito comentado','Mentoria ao vivo'] },
-    { id:'semestral', icon:'📆', name:'Semestral', price:'R$ 119,90', period:'/6 meses', popular:false,
-      feats:['Questões ilimitadas','Simulados completos','IA para redações','Plano de estudos IA'] },
-  ];
-
-  return (
-    <div style={{minHeight:'100vh',background:'#f8fafc',paddingBottom:32}}>
-      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 32px',textAlign:'center',position:'relative'}}>
-        <button onClick={()=>go('perfil')} style={{position:'absolute',left:20,top:44,color:'rgba(255,255,255,.7)',background:'none',border:'none',cursor:'pointer',fontSize:14}}>← Voltar</button>
-        <p style={{color:'#38BDF8',fontWeight:700,fontSize:13,margin:'0 0 4px'}}>🚀 Premium</p>
-        <h1 style={{fontSize:24,fontWeight:900,margin:'0 0 6px'}}>Acelere sua aprovação</h1>
-        <p style={{color:'rgba(255,255,255,.65)',fontSize:13,margin:0}}>A plataforma premium com IA para ENEM e vestibulares</p>
-      </div>
-      <div style={{padding:'20px 16px',display:'flex',flexDirection:'column',gap:14}}>
-        {plans.map(p=>(
-          <div key={p.id} style={{background:'#fff',borderRadius:20,overflow:'hidden',boxShadow:p.popular?'0 0 0 2px #38BDF8, 0 4px 16px rgba(0,0,0,.1)':'0 1px 3px rgba(0,0,0,.08)'}}>
-            {p.popular && <div style={{background:'#38BDF8',color:'#0D2548',textAlign:'center',fontSize:12,fontWeight:900,padding:'6px'}}>{p.badge}</div>}
-            <div style={{padding:20}}>
-              <p style={{fontSize:18,fontWeight:900,color:'#163A70',margin:'0 0 2px'}}>{p.icon} {p.name}</p>
-              <p style={{fontSize:30,fontWeight:900,color:'#163A70',margin:'4px 0 14px'}}>{p.price} <span style={{fontSize:13,fontWeight:400,color:'#9CA3AF'}}>{p.period}</span></p>
-              <ul style={{margin:'0 0 16px',padding:0,listStyle:'none',display:'flex',flexDirection:'column',gap:6}}>
-                {p.feats.map(f=><li key={f} style={{display:'flex',alignItems:'center',gap:8,fontSize:14,color:'#374151'}}><span style={{color:'#16A34A',fontWeight:700}}>✓</span>{f}</li>)}
-              </ul>
-              <Btn v={p.popular?'gold':'primary'} full={true} onClick={()=>{auth.update({plano:'premium'});alert('🎉 Plano ativado! (demo)');go('perfil');}}>
-                Assinar plano {p.name}
-              </Btn>
-            </div>
-          </div>
-        ))}
-        <p style={{textAlign:'center',fontSize:12,color:'#9CA3AF',padding:'0 16px'}}>Cancele a qualquer momento. Garantia de 7 dias.</p>
-      </div>
-    </div>
-  );
-}
 
 /* ───────── ADMIN ───────── */
 function Admin({ go, auth }) {
@@ -4422,7 +4370,7 @@ function Admin({ go, auth }) {
         {tab==='stats' && (
           <>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-              {[{i:'📝',l:'Questões',v:qs.length},{i:'👥',l:'Alunos',v:1247},{i:'✅',l:'Respostas',v:'48.923'},{i:'⭐',l:'Premium',v:342}].map((s,i)=>(
+              {[{i:'📝',l:'Questões',v:qs.length},{i:'👥',l:'Alunos',v:1247},{i:'✅',l:'Respostas',v:'48.923'}].map((s,i)=>(
                 <Card key={i} style={{padding:'14px 16px'}}>
                   <p style={{fontSize:22,margin:'0 0 4px'}}>{s.i}</p>
                   <p style={{fontSize:22,fontWeight:900,color:'#163A70',margin:0}}>{s.v}</p>
@@ -5098,7 +5046,7 @@ function App() {
     if(!PUBLIC.includes(page) && !auth.user) go('login');
   },[page, auth.user]);
 
-  const showNav = !!auth.user && !PUBLIC.includes(page) && page!=='onboarding' && page!=='plano' && page!=='admin';
+  const showNav = !!auth.user && !PUBLIC.includes(page) && page!=='onboarding' && page!=='admin';
 
   const render = () => {
     switch(page) {
@@ -5113,7 +5061,6 @@ function App() {
       case 'redacao':         return auth.user ? <Redacao go={go}/> : <Login go={go} auth={auth}/>;
       case 'evolucao':        return auth.user ? <Evolucao go={go}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'plano':           return auth.user ? <Plano go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'admin':           return auth.user ? <Admin go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       default:                return <Login go={go} auth={auth}/>;
     }
