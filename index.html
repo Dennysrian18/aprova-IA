@@ -96,8 +96,13 @@ function getLevel(xp=0){
 function useRouter(){
   const [page,setPage]=useState(()=>{
     const saved=localStorage.getItem('ap_page');
-    // 'questoes' was the old default — redirect to 'inicio'
-    if(saved==='questoes'&&localStorage.getItem('ap_user'))return 'inicio';
+    const hasUser=!!localStorage.getItem('ap_user');
+    const done=localStorage.getItem('ap_onboarding_done')==='1';
+    // Se o usuário já fez o onboarding, restaura a última página ou vai para questoes
+    if(hasUser && done){
+      if(saved && !['splash','login','register','forgot-password','onboarding'].includes(saved)) return saved;
+      return 'questoes';
+    }
     return saved||'splash';
   });
   const go=p=>{setPage(p);localStorage.setItem('ap_page',p);};
@@ -116,7 +121,7 @@ function useAuth(){
     if(n.lastLogin!==today){n.xp=(n.xp||0)+5;n.lastLogin=today;}
     save(n);
   };
-  const logout=()=>{setUser(null);localStorage.removeItem('ap_user');localStorage.removeItem('ap_page');};
+  const logout=()=>{setUser(null);localStorage.removeItem('ap_user');localStorage.removeItem('ap_page');localStorage.removeItem('ap_onboarding_done');};
   const update=u=>{const n={...user,...u};save(n);};
   const addXP=(amt)=>{const n={...user,xp:(user?.xp||0)+amt};save(n);return n.xp;};
   return {user,login,logout,update,addXP};
@@ -3170,7 +3175,15 @@ function BottomNav({ page, go }) {
 
 /* ───────── SPLASH ───────── */
 function Splash({ go }) {
-  useEffect(() => { const t = setTimeout(()=>go('login'), 2800); return ()=>clearTimeout(t); }, []);
+  useEffect(() => {
+    const t = setTimeout(()=>{
+      const hasUser=!!localStorage.getItem('ap_user');
+      const done=localStorage.getItem('ap_onboarding_done')==='1';
+      if(hasUser && done){ go('questoes'); return; }
+      go('login');
+    }, 1800);
+    return ()=>clearTimeout(t);
+  }, []);
   return (
     <div style={{minHeight:'100vh',background:'linear-gradient(150deg,#163A70,#0D2548)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:32}} className="fadeUp">
       <div style={{position:'relative',width:112,height:112,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -3197,11 +3210,16 @@ function Login({ go, auth }) {
   const submit = () => {
     if(!email||!pass){ setErr('Preencha todos os campos.'); return; }
     if(pass.length<6){ setErr('Senha deve ter ao menos 6 caracteres.'); return; }
+    const done=localStorage.getItem('ap_onboarding_done')==='1';
     auth.login({ name:email.split('@')[0], email });
-    go('onboarding');
+    go(done ? 'questoes' : 'onboarding');
   };
 
-  const google = () => { auth.login({ name:'Usuário Google', email:'usuario@gmail.com' }); go('onboarding'); };
+  const google = () => {
+    const done=localStorage.getItem('ap_onboarding_done')==='1';
+    auth.login({ name:'Usuário Google', email:'usuario@gmail.com' });
+    go(done ? 'questoes' : 'onboarding');
+  };
 
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',background:'linear-gradient(150deg,#163A70,#0D2548)'}}>
@@ -3265,7 +3283,7 @@ function Register({ go, auth }) {
   };
   const verify = () => {
     if(otp.join('')!=='123456'){ setErr('Código inválido. Use 123456 para demo.'); return; }
-    auth.login({name,email}); go('onboarding');
+    auth.login({name,email}); go('onboarding'); localStorage.removeItem('ap_onboarding_done');
   };
   const changeOtp = (i,v) => {
     if(!/^\d?$/.test(v)) return;
@@ -3408,7 +3426,7 @@ function Onboarding({ go, auth }) {
     const finalD = {...d};
     if(d.objetivo==='Outro' && customObjetivo.trim()) finalD.objetivo = customObjetivo.trim();
     if(d.curso==='Outro' && customCurso.trim()) finalD.curso = customCurso.trim();
-    if(last){ auth.update(finalD); go('questoes'); }
+    if(last){ auth.update(finalD); localStorage.setItem('ap_onboarding_done','1'); go('questoes'); }
     else setStep(s=>s+1);
   };
 
