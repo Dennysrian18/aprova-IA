@@ -3622,6 +3622,7 @@ function Onboarding({ go, auth }) {
 
 /* ───────── QUESTÕES ───────── */
 function Questoes({ go }) {
+  const {allQuestions:QS} = useQuestions();
   const [filt,setFilt]=useState({disc:'',dif:'',tipoQ:'misto'});
   const [showF,setShowF]=useState(false);
   const [idx,setIdx]=useState(0);
@@ -4378,8 +4379,9 @@ function Plano({ go, auth }) {
 
 /* ───────── ADMIN ───────── */
 function Admin({ go, auth }) {
+  const {allQuestions} = useQuestions();
   const [tab,setTab]=useState('stats');
-  const [qs,setQs]=useState(QS);
+  const [qs,setQs]=useState(()=>allQuestions);
   const [form,setForm]=useState({disc:'Matemática',dif:'Médio',tema:'',enunciado:'',a:'',b:'',c:'',d:'',e:'',ok:'a',exp:''});
   const [editId,setEditId]=useState(null);
 
