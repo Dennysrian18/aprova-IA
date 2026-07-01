@@ -4467,6 +4467,11 @@ O QUE VOCÊ FAZ QUANDO PEDEM:
 4. Montar resumos, mapas mentais em texto e cronogramas de estudo.
 5. Dar estratégias e dicas de prova.
 
+QUANDO O ALUNO ENVIAR UMA QUESTÃO PARA EXPLICAÇÃO (muito importante!):
+- **Questão objetiva (múltipla escolha):** indique claramente qual alternativa é a correta (ex: "✅ Gabarito: B)"), explique em detalhe por que ela é correta e por que as demais alternativas estão erradas.
+- **Questão dissertativa (aberta):** apresente a resposta completa esperada, explique o raciocínio por trás dela, cite os conceitos envolvidos e mostre como estruturar uma boa resposta.
+- NUNCA gere uma nova questão no lugar de explicar a questão que o aluno enviou. Se ele mandou uma questão, ele quer a resposta e a explicação daquela questão específica.
+
 COMO RESPONDER:
 - Sempre em português do Brasil, com linguagem clara e acolhedora.
 - Use **negrito** nos termos-chave e listas com "-" ou números para organizar.
@@ -4724,11 +4729,59 @@ function iaFmtQ(q,n){
 }
 
 // Gera questões reais a partir do banco embutido. Retorna texto ou null.
+// Detecta quando o aluno envia uma questão pedindo resposta/explicação.
+// Retorna a resposta formatada (objetiva: letra correta + por quê; dissertativa: resposta + explicação).
+function iaExplicarQuestao(text){
+  const n=iaNorm(text);
+
+  // Padrões: aluno perguntando a resposta de uma questão específica
+  const pediu=/(qual\s+(a|e|eh)\s+resposta|qual\s+(o\s+)?gabarito|me\s+expli|corrija|como\s+resol|resposta\s+(certa|correta)|alternativa\s+correta|qual\s+alternativa|letra\s+certa|essa\s+quest|esta\s+quest|resolv[ae]\s+(essa|esta|a\s+quest)|qual\s+letra)/.test(n);
+
+  // Detecta se o texto parece uma questão objetiva copiada (tem alternativas a) b) c))
+  const temAlternativas=/\ba[\s)]\s*.{3,}[\n\r].*\bb[\s)]/.test(text.toLowerCase());
+
+  // Detecta questão dissertativa enviada para explicação (verbos de dissertativa + texto longo)
+  const pareceDissertativa=/\b(explique|disserte|analise|comente|justifique|descreva|relacione|compare|diferencie|aponte|caracterize|argumente)\b/.test(n) && text.length>60;
+
+  if(!pediu && !temAlternativas && !pareceDissertativa) return null;
+
+  // Busca no banco a questão mais parecida
+  const stopW=new Set(['explique','explica','explicar','qual','porque','questao','questoes','como','qual','resposta','gabarito','correta','alternativa','isso','esse','essa','esta','este','letra','certa']);
+  const words=n.split(/[^a-z0-9]+/).filter(w=>w.length>4&&!stopW.has(w));
+  if(words.length<1) return null;
+
+  let best=null,bestScore=0;
+  for(const q of QS_DEFAULT){
+    const hay=iaNorm((q.enunciado||''));
+    let sc=0; for(const w of words){ if(hay.includes(w)) sc++; }
+    if(sc>bestScore){bestScore=sc;best=q;}
+  }
+  if(!best||bestScore<2) return null;
+
+  const disc=best.disc||''; const tema=best.tema||disc; const sub=best.subtema?` › ${best.subtema}`:'';
+  if(best.tipo==='multipla'){
+    const letra=(best.ok||'a').toLowerCase();
+    const altText=best[letra]||'';
+    return `📌 **${disc}** | ${tema}${sub}\n\n**Questão:** ${best.enunciado}\n\n`+
+           `✅ **Gabarito: ${letra.toUpperCase()}) ${altText}**\n\n`+
+           `💡 **Por que essa é a resposta correta:**\n${best.exp||'Confira a explicação da questão no banco.'}\n\n`+
+           `📚 Quer treinar mais? Peça *"5 questões de ${disc}"*.`;
+  } else {
+    return `📌 **${disc}** | ${tema}${sub}\n\n**Questão:** ${best.enunciado}\n\n`+
+           `✅ **Resposta esperada:**\n${best.resposta||'—'}\n\n`+
+           `💡 **Explicação completa:**\n${best.exp||'Elabore sua resposta com argumentos bem estruturados e embasamento teórico.'}\n\n`+
+           `📝 Quer mais dissertativas de **${disc}**? Peça *"questões dissertativas de ${disc}"*.`;
+  }
+}
+
 function iaGenQuestions(text){
   const n=iaNorm(text);
-  const wantsQ=/(quest(ao|oes)|exercici|simulad)/.test(n)
-    || /\b\d+\s*(quest|exerc|pergunt)/.test(n)
-    || /(me\s*de|cria|crie|gera|gere|faca|faz|monta|monte)\s*\d+\s*(quest|exerc|pergunt)/.test(n);
+  // Exige intenção EXPLÍCITA de gerar questões (verbo + objeto OU número + questão)
+  const wantsQ=
+    /\b\d+\s*(quest|exerc|pergunt)/.test(n)   // "5 questões", "10 exercícios"
+    || /(me\s*d[eê]|criar?|gerar?|fazer?|montar?|preciso\s+de|quero\s+ver|quero\s+pratic)\s*(\d+\s*)?(quest|exerc|pergunt)/.test(n)  // "me dê questões", "gera 5"
+    || /^(quest(oes|ao)|exercici)\s+(de|sobre|em)\s+/.test(n)   // começa com "questões de X"
+    || /simulad/.test(n);                      // simulado
   if(!wantsQ) return null;
   let num=5;
   const m=n.match(/(\d+)\s*(quest|exerc|pergunt|simulad)/)||n.match(/\b(\d{1,2})\b/);
@@ -4866,7 +4919,8 @@ function iaResumo(text){
 
 // Roteador determinístico (R$0). Retorna texto pronto ou null.
 function localAnswer(text,ctx){
-  return iaGenQuestions(text)
+  return iaExplicarQuestao(text)    // 1º: explicar questão enviada pelo aluno
+      || iaGenQuestions(text)       // 2º: gerar novas questões se pedido explicitamente
       || iaCronograma(text,ctx&&ctx.obj)
       || iaRedacao(text)
       || iaConteudo(text)
