@@ -160,6 +160,30 @@ function useQuestions(){
   return {allQuestions,extra,addQuestions,deleteQuestion,clearImported};
 }
 
+/* ══════════════════════ STUDY STATS STORE ══════════════════════ */
+function useStudyStats(){
+  const empty={tot:0,ok:0,byDisc:{},byDay:{},streak:0,lastDate:''};
+  const [stats,setStats]=useState(()=>{try{return JSON.parse(localStorage.getItem('ap_study_stats'))||empty;}catch(e){return empty;}});
+  const addAnswer=(disc,acertou)=>{
+    setStats(prev=>{
+      const today=new Date().toISOString().slice(0,10);
+      const dn=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date().getDay()];
+      const prevDisc=prev.byDisc[disc]||{tot:0,ok:0};
+      // streak
+      const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+      const yStr=yesterday.toISOString().slice(0,10);
+      const newStreak=(prev.lastDate===today?prev.streak:prev.lastDate===yStr?prev.streak+1:1);
+      const n={...prev,tot:prev.tot+1,ok:prev.ok+(acertou?1:0),
+        byDisc:{...prev.byDisc,[disc]:{tot:prevDisc.tot+1,ok:prevDisc.ok+(acertou?1:0)}},
+        byDay:{...prev.byDay,[dn]:(prev.byDay[dn]||0)+1},
+        streak:newStreak,lastDate:today};
+      localStorage.setItem('ap_study_stats',JSON.stringify(n));
+      return n;
+    });
+  };
+  return {stats,addAnswer};
+}
+
 /* ══════════════════════ CODES STORE ══════════════════════ */
 function useCodes(){
   const [codes,setCodes]=useState(()=>{
@@ -3620,8 +3644,12 @@ function Onboarding({ go, auth }) {
 }
 
 /* ───────── QUESTÕES ───────── */
-function Questoes({ go }) {
+function Questoes({ go, auth }) {
   const {allQuestions:QS} = useQuestions();
+  const {stats:globalStats,addAnswer} = useStudyStats();
+  const u = auth?.user||{};
+  const nome = (u.name||'').split(' ')[0];
+  const lv = getLevel(u.xp||0);
   const [filt,setFilt]=useState({disc:'',dif:'',tipoQ:'misto'});
   const [showF,setShowF]=useState(false);
   const [idx,setIdx]=useState(0);
@@ -3641,14 +3669,19 @@ function Questoes({ go }) {
 
   const answer = (l) => {
     if(resp) return;
+    const acertou=l===q.ok;
     setResp(l);
-    setStats(s=>({tot:s.tot+1, ok:s.ok+(l===q.ok?1:0)}));
+    setStats(s=>({tot:s.tot+1, ok:s.ok+(acertou?1:0)}));
+    addAnswer(q.disc||'Geral', acertou);
+    if(auth?.addXP) auth.addXP(acertou?(q.xp||15):2);
   };
 
   const selfEval = (acertou) => {
     if(resp) return;
     setResp(acertou?'ok':'err');
     setStats(s=>({tot:s.tot+1, ok:s.ok+(acertou?1:0)}));
+    addAnswer(q.disc||'Geral', acertou);
+    if(auth?.addXP) auth.addXP(acertou?(q.xp||15):2);
   };
 
   const next = () => { setResp(null); setRevealed(false); setIdx(i=>(i+1)%list.length); };
@@ -3659,21 +3692,34 @@ function Questoes({ go }) {
 
   return (
     <div style={{paddingBottom:88,minHeight:'100vh',background:'#f8fafc'}}>
-      {/* Header */}
-      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+      {/* Dashboard personalizado */}
+      <div style={{background:'linear-gradient(150deg,#163A70,#0D2548)',color:'#fff',padding:'40px 20px 20px'}}>
+        {/* Saudação + objetivo */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
           <div>
-            <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Banco de Questões</h1>
-            <p style={{fontSize:12,color:'rgba(255,255,255,.65)',margin:'4px 0 0'}}>{list.length} questões disponíveis</p>
+            <p style={{fontSize:13,color:'rgba(255,255,255,.6)',margin:0}}>Olá{nome?', '+nome:''}! 👋</p>
+            <h1 style={{fontSize:20,fontWeight:900,margin:'4px 0 2px'}}>Vamos estudar?</h1>
+            <p style={{fontSize:12,color:'rgba(255,255,255,.55)',margin:0}}>🎯 {u.objetivo||'ENEM'} · {list.length} questões disponíveis</p>
           </div>
-          <button onClick={()=>setShowF(!showF)} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:14,padding:'8px 16px',fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          <button onClick={()=>setShowF(!showF)} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:14,padding:'8px 14px',fontSize:13,fontWeight:600,cursor:'pointer',flexShrink:0}}>
             🔍 Filtrar
           </button>
         </div>
-        <div style={{display:'flex',gap:12}}>
+        {/* Nível + XP bar */}
+        <div style={{background:'rgba(255,255,255,.1)',borderRadius:14,padding:'10px 14px',marginBottom:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <span style={{fontSize:13,fontWeight:700}}>{lv.icon} {lv.name}</span>
+            <span style={{fontSize:11,color:'rgba(255,255,255,.65)'}}>{u.xp||0} XP · 🔥 {globalStats.streak||0} dias</span>
+          </div>
+          <div style={{background:'rgba(255,255,255,.2)',borderRadius:99,height:6}}>
+            <div className="xpbar" style={{width:`${lv.pct}%`,minWidth:4}}/>
+          </div>
+        </div>
+        {/* Stats da sessão atual */}
+        <div style={{display:'flex',gap:10}}>
           {[{l:'Respondidas',v:stats.tot},{l:'Taxa de acerto',v:(stats.tot?Math.round(stats.ok/stats.tot*100):0)+'%'},{l:'Acertos',v:stats.ok,gold:true}].map((s,i)=>(
             <div key={i} style={{flex:1,background:'rgba(255,255,255,.1)',borderRadius:12,padding:'10px 8px',textAlign:'center'}}>
-              <p style={{fontSize:22,fontWeight:900,margin:0,color:s.gold?'#38BDF8':'#fff'}}>{s.v}</p>
+              <p style={{fontSize:20,fontWeight:900,margin:0,color:s.gold?'#38BDF8':'#fff'}}>{s.v}</p>
               <p style={{fontSize:11,color:'rgba(255,255,255,.65)',margin:0}}>{s.l}</p>
             </div>
           ))}
@@ -4154,66 +4200,124 @@ function Redacao() {
 }
 
 /* ───────── EVOLUÇÃO ───────── */
-function Evolucao() {
-  const week = [{d:'Seg',v:82},{d:'Ter',v:65},{d:'Qua',v:90},{d:'Qui',v:55},{d:'Sex',v:78},{d:'Sáb',v:95},{d:'Dom',v:70}];
-  const disc = [{n:'Português',v:82,t:55},{n:'História',v:88,t:35},{n:'Biologia',v:78,t:32},{n:'Matemática',v:65,t:48},{n:'Química',v:60,t:25},{n:'Física',v:55,t:28}];
-  const mx = Math.max(...week.map(w=>w.v));
+function Evolucao({ auth }) {
+  const {stats} = useStudyStats();
+  const u = auth?.user||{};
+  const lv = getLevel(u.xp||0);
+
+  // Atividade semanal: últimos 7 dias
+  const DAYS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const week=DAYS.map(d=>({d,v:stats.byDay[d]||0}));
+  const mx=Math.max(...week.map(w=>w.v),1);
+
+  // Desempenho por disciplina
+  const disc=Object.entries(stats.byDisc||{})
+    .map(([n,d])=>({n,v:d.tot?Math.round((d.ok/d.tot)*100):0,t:d.tot}))
+    .sort((a,b)=>b.t-a.t).slice(0,6);
+
+  const taxa=stats.tot?Math.round((stats.ok/stats.tot)*100):0;
+  const semVazia=stats.tot===0;
+
+  // Conquistas dinâmicas baseadas nos dados reais
+  const conquistas=ACHIEVEMENTS.map(a=>{
+    let ok=false;
+    if(a.title==='Primeira Questão')   ok=stats.tot>=1;
+    if(a.title==='10 Questões')        ok=stats.tot>=10;
+    if(a.title==='50 Questões')        ok=stats.tot>=50;
+    if(a.title==='100 Questões')       ok=stats.tot>=100;
+    if(a.title==='Maratonista')        ok=stats.tot>=500;
+    if(a.title==='Perfeito')           ok=taxa===100&&stats.tot>=5;
+    if(a.title==='Sequência 3 dias')   ok=(stats.streak||0)>=3;
+    if(a.title==='Sequência 7 dias')   ok=(stats.streak||0)>=7;
+    if(a.title==='Mestre')             ok=(u.xp||0)>=1500;
+    return {...a,ok};
+  });
 
   return (
     <div style={{paddingBottom:88,minHeight:'100vh',background:'#f8fafc'}}>
-      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px'}}>
+      <div style={{background:'linear-gradient(150deg,#163A70,#0D2548)',color:'#fff',padding:'40px 20px 24px'}}>
         <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Evolução</h1>
         <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'6px 0 0'}}>Seu progresso de estudos</p>
-      </div>
-      <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:14}}>
-        {/* Cards */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          {[{i:'🎯',l:'Taxa de acertos',v:'72%',s:'+5% esta semana',c:'#163A70'},{i:'📝',l:'Total questões',v:'248',s:'esta semana: 47',c:'#7C3AED'},{i:'🔥',l:'Dias seguidos',v:'12',s:'recorde: 15 dias',c:'#D97706'},{i:'⭐',l:'Nível atual',v:'Avançado',s:'top 15%',c:'#16A34A'}].map((s,i)=>(
-            <Card key={i} style={{padding:'14px 16px'}}>
-              <p style={{fontSize:24,margin:'0 0 4px'}}>{s.i}</p>
-              <p style={{fontSize:22,fontWeight:900,color:s.c,margin:0}}>{s.v}</p>
-              <p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'2px 0 0'}}>{s.l}</p>
-              <p style={{fontSize:11,color:'#9CA3AF',margin:'2px 0 0'}}>{s.s}</p>
-            </Card>
-          ))}
-        </div>
-
-        {/* Gráfico */}
-        <Card>
-          <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Atividade semanal</h3>
-          <div style={{display:'flex',alignItems:'flex-end',gap:6,height:120}}>
-            {week.map((w,i)=>(
-              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                <div style={{flex:1,display:'flex',alignItems:'flex-end',width:'100%'}}>
-                  <div style={{width:'100%',borderRadius:'6px 6px 0 0',height:`${(w.v/mx)*100}%`,background:w.d==='Qua'?'#38BDF8':'#163A70',opacity:w.d==='Qua'?1:.65,minHeight:4,transition:'height .5s ease'}}/>
-                </div>
-                <p style={{fontSize:10,color:'#9CA3AF',margin:0}}>{w.d}</p>
-              </div>
-            ))}
+        {/* XP bar */}
+        <div style={{marginTop:14,background:'rgba(255,255,255,.15)',borderRadius:14,padding:'10px 14px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+            <span style={{fontSize:13,fontWeight:700}}>{lv.icon} {lv.name}</span>
+            <span style={{fontSize:12,color:'rgba(255,255,255,.7)'}}>{u.xp||0} XP</span>
           </div>
-        </Card>
+          <div style={{background:'rgba(255,255,255,.2)',borderRadius:99,height:8}}>
+            <div className="xpbar" style={{width:`${lv.pct}%`,minWidth:4}}/>
+          </div>
+        </div>
+      </div>
 
-        {/* Por disciplina */}
-        <Card>
-          <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Desempenho por disciplina</h3>
-          {disc.map((d,i)=>(
-            <div key={i} style={{marginBottom:14}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
-                <span style={{fontWeight:600,color:'#374151'}}>{d.n}</span>
-                <span style={{fontWeight:700,color:d.v>=75?'#16A34A':d.v>=60?'#163A70':'#D97706'}}>{d.v}%</span>
-              </div>
-              <Progress val={d.v} color={d.v>=75?'#16A34A':d.v>=60?'#163A70':'#D97706'}/>
-              <p style={{fontSize:11,color:'#9CA3AF',margin:'3px 0 0'}}>{d.t} questões</p>
+      <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:14}}>
+        {semVazia ? (
+          <Card>
+            <div style={{textAlign:'center',padding:'28px 16px'}}>
+              <p style={{fontSize:40,margin:'0 0 12px'}}>🚀</p>
+              <p style={{fontSize:17,fontWeight:700,color:'#163A70',margin:'0 0 8px'}}>Sua jornada começa agora!</p>
+              <p style={{fontSize:14,color:'#6B7280',margin:0,lineHeight:1.6}}>Responda questões para ver seu progresso aqui. Cada questão respondida conta pontos de XP e alimenta suas estatísticas.</p>
             </div>
-          ))}
-        </Card>
+          </Card>
+        ) : (
+          <>
+            {/* Cards de stats */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              {[
+                {i:'🎯',l:'Taxa de acertos',v:taxa+'%',s:stats.tot+' questões',c:'#163A70'},
+                {i:'📝',l:'Total questões',v:stats.tot,s:stats.ok+' acertos',c:'#7C3AED'},
+                {i:'🔥',l:'Dias seguidos',v:stats.streak||0,s:'dia(s) em sequência',c:'#D97706'},
+                {i:'⭐',l:'Nível atual',v:lv.name,s:lv.icon+' '+lv.pct+'% próx.',c:'#16A34A'},
+              ].map((s,i)=>(
+                <Card key={i} style={{padding:'14px 16px'}}>
+                  <p style={{fontSize:24,margin:'0 0 4px'}}>{s.i}</p>
+                  <p style={{fontSize:20,fontWeight:900,color:s.c,margin:0}}>{s.v}</p>
+                  <p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'2px 0 0'}}>{s.l}</p>
+                  <p style={{fontSize:11,color:'#9CA3AF',margin:'2px 0 0'}}>{s.s}</p>
+                </Card>
+              ))}
+            </div>
+
+            {/* Gráfico semanal */}
+            <Card>
+              <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Atividade semanal</h3>
+              <div style={{display:'flex',alignItems:'flex-end',gap:6,height:100}}>
+                {week.map((w,i)=>(
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                    <div style={{flex:1,display:'flex',alignItems:'flex-end',width:'100%'}}>
+                      <div style={{width:'100%',borderRadius:'6px 6px 0 0',height:`${(w.v/mx)*100}%`,background:w.v>0?'#163A70':'#E5E7EB',minHeight:4,transition:'height .5s ease'}}/>
+                    </div>
+                    <p style={{fontSize:10,color:'#9CA3AF',margin:0}}>{w.d}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Por disciplina */}
+            {disc.length>0 && (
+              <Card>
+                <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Desempenho por disciplina</h3>
+                {disc.map((d,i)=>(
+                  <div key={i} style={{marginBottom:14}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
+                      <span style={{fontWeight:600,color:'#374151'}}>{d.n}</span>
+                      <span style={{fontWeight:700,color:d.v>=75?'#16A34A':d.v>=60?'#163A70':'#D97706'}}>{d.v}%</span>
+                    </div>
+                    <Progress val={d.v} color={d.v>=75?'#16A34A':d.v>=60?'#163A70':'#D97706'}/>
+                    <p style={{fontSize:11,color:'#9CA3AF',margin:'3px 0 0'}}>{d.t} questões respondidas</p>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </>
+        )}
 
         {/* Conquistas */}
         <Card>
           <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Conquistas 🏆</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-            {ACHIEVEMENTS.map((a,i)=>(
-              <div key={i} style={{textAlign:'center',padding:'12px 8px',borderRadius:14,background:a.ok?'#FFFBEB':'#F9FAFB',border:a.ok?'1px solid #FDE68A':'1px solid #E5E7EB',opacity:a.ok?1:.5}}>
+            {conquistas.map((a,i)=>(
+              <div key={i} style={{textAlign:'center',padding:'12px 8px',borderRadius:14,background:a.ok?'#FFFBEB':'#F9FAFB',border:a.ok?'1px solid #FDE68A':'1px solid #E5E7EB',opacity:a.ok?1:.4}}>
                 <p style={{fontSize:28,margin:'0 0 4px'}}>{a.icon}</p>
                 <p style={{fontSize:11,fontWeight:700,color:'#374151',margin:'0 0 2px',lineHeight:1.3}}>{a.title}</p>
                 <p style={{fontSize:10,color:'#9CA3AF',margin:0,lineHeight:1.3}}>{a.desc}</p>
@@ -4960,9 +5064,22 @@ function IAMentor({ auth }){
   });
   const [input,setInput]=useState('');
   const [loading,setLoading]=useState(false);
+  const [listening,setListening]=useState(false);
   const activeKey=GEMINI_API_KEY||localStorage.getItem('ap_gemini_key')||'';
   const hasLLM=!!(IA_PROXY_URL||activeKey);
   const scrollRef=useRef(null);
+
+  const startVoice=()=>{
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){alert('Seu navegador não suporta reconhecimento de voz. Use o Chrome.');return;}
+    const rec=new SR();
+    rec.lang='pt-BR'; rec.continuous=false; rec.interimResults=false;
+    setListening(true);
+    rec.onresult=e=>{const t=e.results[0][0].transcript;setInput(p=>p?p+' '+t:t);};
+    rec.onerror=()=>setListening(false);
+    rec.onend=()=>setListening(false);
+    rec.start();
+  };
 
   useEffect(()=>{try{localStorage.setItem('ap_ia_chat',JSON.stringify(messages.slice(-40)));}catch(e){}},[messages]);
   useEffect(()=>{if(scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;},[messages,loading]);
@@ -5083,7 +5200,11 @@ function IAMentor({ auth }){
       )}
 
       <div style={{flexShrink:0,display:'flex',gap:8,alignItems:'flex-end',padding:'10px 12px',marginBottom:58,background:'#080F1E',borderTop:'1px solid #1A3050'}}>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} rows={1} placeholder="Pergunte qualquer coisa…" style={{flex:1,resize:'none',maxHeight:120,border:'1px solid #1A3050',borderRadius:18,padding:'11px 14px',fontSize:14,lineHeight:1.4,background:'#0F2040',color:'#E2E8F0',fontFamily:'inherit'}}/>
+        {/* Botão microfone */}
+        <button onClick={startVoice} disabled={listening||loading} title="Falar por voz" style={{flexShrink:0,width:44,height:44,borderRadius:'50%',border:'none',cursor:listening?'default':'pointer',fontSize:18,background:listening?'#DC2626':'#1A3050',color:listening?'#fff':'#7DD3FC',display:'flex',alignItems:'center',justifyContent:'center',transition:'background .2s'}}>
+          {listening?'⏹':'🎙'}
+        </button>
+        <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} rows={1} placeholder={listening?'🎙 Ouvindo… fale agora':'Pergunte qualquer coisa ou use o microfone…'} style={{flex:1,resize:'none',maxHeight:120,border:'1px solid '+(listening?'#DC2626':'#1A3050'),borderRadius:18,padding:'11px 14px',fontSize:14,lineHeight:1.4,background:'#0F2040',color:'#E2E8F0',fontFamily:'inherit',transition:'border-color .2s'}}/>
         <button onClick={()=>send()} disabled={!input.trim()||loading} style={{flexShrink:0,width:44,height:44,borderRadius:'50%',border:'none',cursor:(!input.trim()||loading)?'default':'pointer',fontSize:18,background:(!input.trim()||loading)?'#1A3050':'linear-gradient(135deg,#38BDF8,#0EA5E9)',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center'}}>➤</button>
       </div>
     </div>
@@ -5109,11 +5230,11 @@ function App() {
       case 'register':        return <Register go={go} auth={auth}/>;
       case 'forgot-password': return <ForgotPass go={go}/>;
       case 'onboarding':      return auth.user ? <Onboarding go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'questoes':        return auth.user ? <Questoes go={go}/> : <Login go={go} auth={auth}/>;
+      case 'questoes':        return auth.user ? <Questoes go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'simulados':       return auth.user ? <Simulados go={go}/> : <Login go={go} auth={auth}/>;
       case 'mentor':          return auth.user ? <IAMentor auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'redacao':         return auth.user ? <Redacao go={go}/> : <Login go={go} auth={auth}/>;
-      case 'evolucao':        return auth.user ? <Evolucao go={go}/> : <Login go={go} auth={auth}/>;
+      case 'evolucao':        return auth.user ? <Evolucao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'admin':           return auth.user ? <Admin go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       default:                return <Login go={go} auth={auth}/>;
