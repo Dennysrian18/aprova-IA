@@ -3,6 +3,15 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<!-- ═══ SEGURANÇA: Content-Security-Policy ═══
+     Restringe a origem de scripts/estilos/imagens e, principalmente, LIMITA para
+     onde o app pode ENVIAR dados (connect-src) — bloqueando exfiltração de
+     informações para servidores de terceiros caso algum código malicioso seja
+     injetado. 'unsafe-eval'/'unsafe-inline' são necessários porque o app usa
+     Babel Standalone (transpila JSX no navegador). object-src 'none' e
+     base-uri 'self' bloqueiam vetores clássicos de injeção. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mentor-ia.dennysrian18.workers.dev https://generativelanguage.googleapis.com https://unpkg.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests"/>
+<meta name="referrer" content="no-referrer"/>
 <title>Aprova IA</title>
 <meta name="description" content="Estude para o ENEM, vestibulares e concursos: questões, simulados, redação corrigida por IA e mentor inteligente. Gamificado com XP e patentes."/>
 <!-- ═══ PWA (instalável + offline) ═══ -->
@@ -74,9 +83,12 @@ body.dark [style*="border-top: 1px solid #e5e7eb"]{border-top-color:var(--border
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18.2.0/umd/react.development.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+<!-- Scripts externos com Subresource Integrity (SRI): o navegador só executa
+     o arquivo se o hash bater exatamente com o esperado. Se o CDN for hackeado
+     e servir um arquivo alterado, ele é BLOQUEADO. -->
+<script src="https://unpkg.com/react@18.2.0/umd/react.development.js" integrity="sha384-0HL/VWVbwweJfp0saUL50fXRuSABCdVeinTBoJCDXprLkJ49VI0QMWNGMRt8ebnT" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js" integrity="sha384-79Od0yhavbvtuP2nWl+Y6mwgs8AlknSIikYSw0+uOc65GTyH8SW7e2hCyCB303Y2" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js" integrity="sha384-sw98ksifz4z7bpf5bssQYm0RlqkUsNXcYh7KqhO3+SIrvf3+mf0kQRNxaCWcgzjG" crossorigin="anonymous"></script>
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useRef,useCallback} = React;
 
@@ -217,11 +229,16 @@ function useTheme(){
 const ThemeCtx=React.createContext({toggle:()=>{},dark:false});
 function useThemeCtx(){return React.useContext(ThemeCtx);}
 
-/* ══════════════════════ ADMIN CONFIG ══════════════════════ */
-// ⚠️ Altere este email para o SEU email de administrador
+/* ══════════════════════ ADMIN CONFIG ══════════════════════
+   ⚠️ IMPORTANTE: este é um app 100% no navegador (sem servidor). Portanto
+   NENHUMA senha deve ficar no código — código-fonte de site é público e
+   qualquer um consegue lê-lo. Por isso NÃO guardamos senha de admin aqui.
+   O painel de admin só edita questões LOCALMENTE (não afeta outros usuários),
+   então usamos apenas o e-mail para ESCONDER o painel de usuários comuns.
+   Se um dia precisar de um admin de verdade (que altere dados de todos), isso
+   TEM que ser validado num servidor/back-end — nunca no navegador. */
 const ADMIN_EMAIL = 'admin@aprovaia.com';
-const ADMIN_PASS  = 'admin2025';
-const isAdminUser = (email) => email?.toLowerCase()===ADMIN_EMAIL.toLowerCase();
+const isAdminUser = (email) => !!email && email.toLowerCase()===ADMIN_EMAIL.toLowerCase();
 
 /* ══════════════════════ QUESTIONS STORE ══════════════════════ */
 function useQuestions(){
@@ -9880,7 +9897,7 @@ function App() {
       case 'redacao':         return auth.user ? <Redacao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'evolucao':        return auth.user ? <Evolucao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'admin':           return auth.user ? <Admin go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
+      case 'admin':           return (auth.user && isAdminUser(auth.user.email)) ? <Admin go={go} auth={auth}/> : (auth.user ? <Questoes go={go} auth={auth}/> : <Login go={go} auth={auth}/>);
       default:                return <Login go={go} auth={auth}/>;
     }
   };
