@@ -7285,11 +7285,22 @@ function QuickReview({QS, auth, addAnswer, dark, onClose}){
 
 /* Pomodoro — timer de foco 25/5 com som ao terminar */
 function PomodoroWidget({onClose}){
-  const FOCUS=25*60, BREAK=5*60;
+  const DEFAULTS={focus:25,brk:5};
+  const PRESETS=[{focus:25,brk:5,l:'Clássico'},{focus:50,brk:10,l:'Longo'},{focus:15,brk:3,l:'Curto'},{focus:90,brk:20,l:'Foco total'}];
+  // configuração personalizada (em minutos), persistida no aparelho
+  const [cfg,setCfg]=useState(()=>{
+    try{const s=JSON.parse(localStorage.getItem('ap_pomodoro'));
+      if(s&&s.focus>0&&s.brk>0) return {focus:Math.min(120,Math.max(1,s.focus)),brk:Math.min(60,Math.max(1,s.brk))};
+    }catch(e){}
+    return DEFAULTS;
+  });
+  const FOCUS=cfg.focus*60, BREAK=cfg.brk*60;
   const [mode,setMode]=useState('focus'); // 'focus' | 'break'
   const [secs,setSecs]=useState(FOCUS);
   const [running,setRunning]=useState(false);
   const [cycles,setCycles]=useState(0);
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(cfg);
   useEffect(()=>{
     if(!running)return;
     const iv=setInterval(()=>{
@@ -7304,41 +7315,97 @@ function PomodoroWidget({onClose}){
       });
     },1000);
     return ()=>clearInterval(iv);
-  },[running,mode]);
+  },[running,mode,FOCUS,BREAK]);
   const reset=()=>{setRunning(false);setMode('focus');setSecs(FOCUS);};
+  const openEdit=()=>{setRunning(false);setDraft(cfg);setEditing(true);};
+  const clampF=v=>Math.max(1,Math.min(120,Math.round(v||1)));
+  const clampB=v=>Math.max(1,Math.min(60,Math.round(v||1)));
+  const saveCfg=()=>{
+    const nc={focus:clampF(draft.focus),brk:clampB(draft.brk)};
+    setCfg(nc);
+    try{localStorage.setItem('ap_pomodoro',JSON.stringify(nc));}catch(e){}
+    setMode('focus');setSecs(nc.focus*60);setRunning(false);setEditing(false);
+  };
   const m=Math.floor(secs/60),s=secs%60;
   const total=mode==='focus'?FOCUS:BREAK;
   const pct=Math.round(((total-secs)/total)*100);
   const accent=mode==='focus'?'#DC2626':'#0891B2';
+
+  /* ── stepper reutilizável (− valor +) ── */
+  const Stepper=({label,icon,val,set,min,max})=>(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0'}}>
+      <span style={{fontSize:14,fontWeight:600,color:'var(--text)'}}>{icon} {label}</span>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <button onClick={()=>set(Math.max(min,val-1))} style={{width:34,height:34,borderRadius:10,border:'1px solid var(--border)',background:'var(--card2)',color:'var(--text)',fontSize:20,fontWeight:800,cursor:'pointer',lineHeight:1}}>−</button>
+        <input type="number" inputMode="numeric" value={val}
+          onChange={e=>set(Math.max(min,Math.min(max,parseInt(e.target.value||'0',10)||min)))}
+          style={{width:52,textAlign:'center',fontSize:18,fontWeight:900,color:'var(--text)',background:'var(--inp-bg)',border:'1px solid var(--inp-bdr)',borderRadius:10,padding:'6px 0'}}/>
+        <button onClick={()=>set(Math.min(max,val+1))} style={{width:34,height:34,borderRadius:10,border:'1px solid var(--border)',background:'var(--card2)',color:'var(--text)',fontSize:20,fontWeight:800,cursor:'pointer',lineHeight:1}}>+</button>
+        <span style={{fontSize:12,color:'var(--sub)',width:26}}>min</span>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}} className="fadeUp" onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:'var(--card)',borderRadius:24,padding:'28px 24px',width:'100%',maxWidth:340,textAlign:'center',boxShadow:'0 12px 48px rgba(0,0,0,.4)'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
           <span style={{fontSize:16,fontWeight:900,color:'var(--text)'}}>🍅 Pomodoro</span>
-          <button onClick={onClose} style={{background:'var(--card2)',border:'none',color:'var(--sub)',borderRadius:8,width:30,height:30,fontSize:16,cursor:'pointer'}}>✕</button>
-        </div>
-        <div style={{display:'inline-flex',gap:6,marginBottom:20,background:'var(--card2)',borderRadius:99,padding:4}}>
-          {[{k:'focus',l:'Foco 25min'},{k:'break',l:'Pausa 5min'}].map(t=>(
-            <button key={t.k} onClick={()=>{setMode(t.k);setSecs(t.k==='focus'?FOCUS:BREAK);setRunning(false);}}
-              style={{padding:'6px 14px',borderRadius:99,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:mode===t.k?accent:'transparent',color:mode===t.k?'#fff':'var(--sub)'}}>{t.l}</button>
-          ))}
-        </div>
-        <div style={{position:'relative',width:180,height:180,margin:'0 auto 20px'}}>
-          <svg width="180" height="180" style={{transform:'rotate(-90deg)'}}>
-            <circle cx="90" cy="90" r="80" fill="none" stroke="var(--border)" strokeWidth="10"/>
-            <circle cx="90" cy="90" r="80" fill="none" stroke={accent} strokeWidth="10" strokeLinecap="round"
-              strokeDasharray={2*Math.PI*80} strokeDashoffset={2*Math.PI*80*(1-pct/100)} style={{transition:'stroke-dashoffset 1s linear'}}/>
-          </svg>
-          <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
-            <span style={{fontSize:42,fontWeight:900,color:'var(--text)',fontFamily:'monospace'}}>{m}:{String(s).padStart(2,'0')}</span>
-            <span style={{fontSize:12,color:'var(--sub)',fontWeight:600}}>{mode==='focus'?'Hora de focar':'Hora de descansar'}</span>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {!editing && <button onClick={openEdit} title="Personalizar tempos" style={{background:'var(--card2)',border:'none',color:'var(--sub)',borderRadius:8,width:30,height:30,fontSize:15,cursor:'pointer'}}>⚙️</button>}
+            <button onClick={onClose} style={{background:'var(--card2)',border:'none',color:'var(--sub)',borderRadius:8,width:30,height:30,fontSize:16,cursor:'pointer'}}>✕</button>
           </div>
         </div>
-        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-          <button onClick={()=>setRunning(r=>!r)} style={{flex:1,padding:'13px',borderRadius:14,border:'none',cursor:'pointer',fontWeight:800,fontSize:15,background:accent,color:'#fff'}}>{running?'⏸ Pausar':'▶ Iniciar'}</button>
-          <button onClick={reset} style={{padding:'13px 18px',borderRadius:14,border:'1px solid var(--border)',cursor:'pointer',fontWeight:700,fontSize:15,background:'var(--card2)',color:'var(--text)'}}>↺</button>
-        </div>
-        <p style={{fontSize:12,color:'var(--sub)',margin:'16px 0 0'}}>🍅 Ciclos concluídos hoje: <b style={{color:'var(--text)'}}>{cycles}</b></p>
+
+        {editing ? (
+          /* ───── PAINEL DE PERSONALIZAÇÃO ───── */
+          <div style={{textAlign:'left'}}>
+            <p style={{fontSize:13,color:'var(--sub)',margin:'0 0 6px',textAlign:'center'}}>Defina seus tempos de estudo e descanso</p>
+            <Stepper label="Tempo de foco"  icon="📚" val={draft.focus} set={v=>setDraft(d=>({...d,focus:v}))} min={1} max={120}/>
+            <div style={{height:1,background:'var(--border)'}}/>
+            <Stepper label="Tempo de pausa" icon="☕" val={draft.brk}   set={v=>setDraft(d=>({...d,brk:v}))}   min={1} max={60}/>
+            <p style={{fontSize:11,color:'var(--muted)',margin:'12px 0 6px',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em'}}>Presets rápidos</p>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:18}}>
+              {PRESETS.map(p=>{
+                const active=draft.focus===p.focus&&draft.brk===p.brk;
+                return <button key={p.l} onClick={()=>setDraft({focus:p.focus,brk:p.brk})}
+                  style={{flex:'1 1 45%',padding:'8px 6px',borderRadius:10,border:`1.5px solid ${active?'#DC2626':'var(--border)'}`,background:active?'rgba(220,38,38,.1)':'var(--card2)',color:active?'#DC2626':'var(--text)',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                  {p.l}<br/><span style={{fontSize:10,fontWeight:500,opacity:.8}}>{p.focus}min / {p.brk}min</span>
+                </button>;
+              })}
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={saveCfg} style={{flex:1,padding:'13px',borderRadius:14,border:'none',cursor:'pointer',fontWeight:800,fontSize:15,background:'#DC2626',color:'#fff'}}>Salvar</button>
+              <button onClick={()=>setEditing(false)} style={{padding:'13px 18px',borderRadius:14,border:'1px solid var(--border)',cursor:'pointer',fontWeight:700,fontSize:15,background:'var(--card2)',color:'var(--text)'}}>Cancelar</button>
+            </div>
+          </div>
+        ) : (
+          /* ───── TIMER ───── */
+          <>
+            <div style={{display:'inline-flex',gap:6,marginBottom:20,background:'var(--card2)',borderRadius:99,padding:4}}>
+              {[{k:'focus',l:`Foco ${cfg.focus}min`},{k:'break',l:`Pausa ${cfg.brk}min`}].map(t=>(
+                <button key={t.k} onClick={()=>{setMode(t.k);setSecs(t.k==='focus'?FOCUS:BREAK);setRunning(false);}}
+                  style={{padding:'6px 14px',borderRadius:99,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:mode===t.k?accent:'transparent',color:mode===t.k?'#fff':'var(--sub)'}}>{t.l}</button>
+              ))}
+            </div>
+            <div style={{position:'relative',width:180,height:180,margin:'0 auto 20px'}}>
+              <svg width="180" height="180" style={{transform:'rotate(-90deg)'}}>
+                <circle cx="90" cy="90" r="80" fill="none" stroke="var(--border)" strokeWidth="10"/>
+                <circle cx="90" cy="90" r="80" fill="none" stroke={accent} strokeWidth="10" strokeLinecap="round"
+                  strokeDasharray={2*Math.PI*80} strokeDashoffset={2*Math.PI*80*(1-pct/100)} style={{transition:'stroke-dashoffset 1s linear'}}/>
+              </svg>
+              <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+                <span style={{fontSize:42,fontWeight:900,color:'var(--text)',fontFamily:'monospace'}}>{m}:{String(s).padStart(2,'0')}</span>
+                <span style={{fontSize:12,color:'var(--sub)',fontWeight:600}}>{mode==='focus'?'Hora de focar':'Hora de descansar'}</span>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+              <button onClick={()=>setRunning(r=>!r)} style={{flex:1,padding:'13px',borderRadius:14,border:'none',cursor:'pointer',fontWeight:800,fontSize:15,background:accent,color:'#fff'}}>{running?'⏸ Pausar':'▶ Iniciar'}</button>
+              <button onClick={reset} style={{padding:'13px 18px',borderRadius:14,border:'1px solid var(--border)',cursor:'pointer',fontWeight:700,fontSize:15,background:'var(--card2)',color:'var(--text)'}}>↺</button>
+            </div>
+            <p style={{fontSize:12,color:'var(--sub)',margin:'16px 0 0'}}>🍅 Ciclos concluídos hoje: <b style={{color:'var(--text)'}}>{cycles}</b></p>
+          </>
+        )}
       </div>
     </div>
   );
