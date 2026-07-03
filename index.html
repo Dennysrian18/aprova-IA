@@ -9828,6 +9828,8 @@ function IAMentor({ auth }){
     if(IA_PROXY_URL){
       const r=await fetch(IA_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:sys,contents:hist})});
       const data=await r.json().catch(()=>({}));
+      // Rate limit do Worker (429): mostra a mensagem amigável direto, sem "erro".
+      if(r.status===429||(data&&data.rateLimited)) return (data&&(data.text||data.error))||'⏳ Muitas mensagens em pouco tempo. Aguarde alguns segundos e tente de novo.';
       if(!r.ok) throw new Error((data&&(data.error&&data.error.message||data.error))||('Erro '+r.status));
       const cand=data.candidates&&data.candidates[0];
       const txt=data.text||(cand&&cand.content&&cand.content.parts?cand.content.parts.map(p=>p.text||'').join(''):'');
