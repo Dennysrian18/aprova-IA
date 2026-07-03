@@ -177,7 +177,17 @@ function useAuth(){
   const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('ap_user'))||null;}catch(e){return null;}});
   const save=u=>{setUser(u);localStorage.setItem('ap_user',JSON.stringify(u));};
   const login=u=>{
-    const n={...DEF,...u};
+    // Se já existe um usuário salvo com o MESMO e-mail, faz login MESCLANDO
+    // com os dados existentes (perfil, XP, streak, foto etc.) em vez de
+    // sobrescrever tudo com os valores padrão — evita que o perfil "resete"
+    // a cada novo login (bug que afetava principalmente o "Continuar com
+    // Google", já que ele sempre usa o mesmo e-mail fixo).
+    let existing=null;
+    try{ existing=JSON.parse(localStorage.getItem('ap_user')); }catch(e){}
+    const sameUser = existing && existing.email && u.email
+      && existing.email.toLowerCase()===u.email.toLowerCase();
+    const base = sameUser ? existing : DEF;
+    const n={...base,...u};
     // daily login XP
     const today=new Date().toDateString();
     if(n.lastLogin!==today){n.xp=(n.xp||0)+5;n.lastLogin=today;}
