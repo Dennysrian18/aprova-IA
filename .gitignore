@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Preview / dev scaffolding (não faz parte do app)
+.claude/
+serve_preview.py

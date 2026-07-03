@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Aprova IA">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#163A70"/>
+    </linearGradient>
+  </defs>
+  <!-- fundo full-bleed (maskable safe) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- capelo (graduation cap) -->
+  <g fill="#FFFFFF">
+    <!-- aba superior (losango em perspectiva) -->
+    <path d="M256 150 L410 214 L256 278 L102 214 Z"/>
+    <!-- corpo do capelo -->
+    <path d="M168 244 L168 316 C168 344 208 362 256 362 C304 362 344 344 344 316 L344 244 L256 278 Z" opacity="0.92"/>
+  </g>
+  <!-- borla (tassel) -->
+  <g stroke="#F59E0B" stroke-width="8" fill="#F59E0B" stroke-linecap="round">
+    <path d="M410 214 L410 300" fill="none"/>
+    <circle cx="410" cy="312" r="14"/>
+  </g>
+  <!-- selo de aprovado (check) -->
+  <g>
+    <circle cx="360" cy="372" r="52" fill="#22C55E"/>
+    <path d="M336 372 L354 390 L388 356" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -2,8 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>Aprova IA</title>
+<meta name="description" content="Estude para o ENEM, vestibulares e concursos: questões, simulados, redação corrigida por IA e mentor inteligente. Gamificado com XP e patentes."/>
+<!-- ═══ PWA (instalável + offline) ═══ -->
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#163A70"/>
+<link rel="icon" type="image/svg+xml" href="icon.svg"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Aprova IA"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0A0F1A;}
@@ -89,6 +99,10 @@ const GEMINI_MODEL   = 'gemini-2.0-flash';
    explicações passam a funcionar para TODOS os alunos sem nenhuma chave. */
 const IA_PROXY_URL   = 'https://mentor-ia.dennysrian18.workers.dev';
 
+/* Ícone do app (usado em notificações e no PWA). Arquivo servido ao lado
+   do index.html — funciona em subpasta (GitHub Pages /aprova-IA/). */
+const APP_ICON = 'icon.svg';
+
 /* ══════════════════════ THEME ══════════════════════ */
 const LIGHT = {
   dark:false,
@@ -110,14 +124,26 @@ const DARK = {
 };
 
 /* ══════════════════════ GAMIFICATION ══════════════════════ */
+/* Curva de patentes PROGRESSIVA:
+   - O início (Novato → Aprendiz → Estudante) é rápido para dar vitórias fáceis
+     e não desanimar o aluno novo.
+   - A partir daí, cada patente exige um salto de XP cada vez MAIOR
+     (gaps: 60,120,220,350,550,900,1400,2200,3200), então subir de nível
+     fica progressivamente mais difícil e mais recompensador — mais retenção. */
 const LEVELS = [
   {name:'Novato',     min:0,    icon:'🌱', color:'#6B7280'},
-  {name:'Estudante',  min:100,  icon:'📖', color:'#2563EB'},
-  {name:'Dedicado',   min:300,  icon:'🎯', color:'#7C3AED'},
-  {name:'Avançado',   min:600,  icon:'⚡', color:'#D97706'},
-  {name:'Expert',     min:1000, icon:'🔥', color:'#DC2626'},
-  {name:'Mestre',     min:1500, icon:'👑', color:'#38BDF8'},
+  {name:'Aprendiz',   min:60,   icon:'📖', color:'#10B981'},
+  {name:'Estudante',  min:180,  icon:'✏️', color:'#2563EB'},
+  {name:'Dedicado',   min:400,  icon:'🎯', color:'#7C3AED'},
+  {name:'Aplicado',   min:750,  icon:'⚡', color:'#0891B2'},
+  {name:'Avançado',   min:1300, icon:'🚀', color:'#D97706'},
+  {name:'Veterano',   min:2200, icon:'🛡️', color:'#DB2777'},
+  {name:'Expert',     min:3600, icon:'🔥', color:'#DC2626'},
+  {name:'Mestre',     min:5800, icon:'👑', color:'#F59E0B'},
+  {name:'Lenda',      min:9000, icon:'🏆', color:'#38BDF8'},
 ];
+const XP_MESTRE = (LEVELS.find(l=>l.name==='Mestre')||{}).min||5800;
+const XP_LENDA  = (LEVELS.find(l=>l.name==='Lenda')||{}).min||9000;
 function getLevel(xp=0){
   let lv=LEVELS[0];
   for(const l of LEVELS) if(xp>=l.min) lv=l;
@@ -227,6 +253,7 @@ function useStudyStats(){
       localStorage.setItem('ap_study_stats',JSON.stringify(n));
       return n;
     });
+    try{ _markStudiedToday(); }catch(e){}   // registra estudo do dia (p/ notificações de streak)
   };
   return {stats,addAnswer};
 }
@@ -6137,9 +6164,43 @@ function playSound(type){
         g.gain.exponentialRampToValueAtTime(0.001,t+dt+0.5);
         o.start(t+dt);o.stop(t+dt+0.5);
       });
+    } else if(type==='correct'){
+      // Two quick rising notes — cheerful "acertou"
+      [[660,0],[990,0.09]].forEach(([f,dt])=>{
+        const o=ctx.createOscillator();
+        const g=ctx.createGain();
+        o.connect(g);g.connect(master);
+        o.type='triangle';
+        o.frequency.value=f;
+        g.gain.setValueAtTime(0,t+dt);
+        g.gain.linearRampToValueAtTime(0.5,t+dt+0.02);
+        g.gain.exponentialRampToValueAtTime(0.001,t+dt+0.2);
+        o.start(t+dt);o.stop(t+dt+0.2);
+      });
+    } else if(type==='wrong'){
+      // Low descending buzz — gentle "errou"
+      const o=ctx.createOscillator();
+      const g=ctx.createGain();
+      o.connect(g);g.connect(master);
+      o.type='sawtooth';
+      o.frequency.setValueAtTime(300,t);
+      o.frequency.exponentialRampToValueAtTime(150,t+0.25);
+      g.gain.setValueAtTime(0.35,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.28);
+      o.start(t);o.stop(t+0.28);
     }
     setTimeout(()=>{try{ctx.close();}catch(e){}},2000);
   }catch(e){}
+}
+
+/* Vibração tátil (se suportado). Padrões curtos p/ acerto/erro. */
+function vibrate(pattern){
+  try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
+}
+/* Feedback combinado som+vibração ao responder */
+function fxAnswer(acertou){
+  playSound(acertou?'correct':'wrong');
+  vibrate(acertou?30:[40,40,40]);
 }
 
 /* ───────── ACHIEVEMENTS ───────── */
@@ -6152,7 +6213,8 @@ const ACHIEVEMENTS = [
   { icon:'🎯', title:'Perfeito',          desc:'100% de acertos (mín. 5 questões)' },
   { icon:'🔥', title:'Sequência 3 dias',  desc:'3 dias seguidos de estudo' },
   { icon:'⚡', title:'Sequência 7 dias',  desc:'7 dias seguidos de estudo' },
-  { icon:'👑', title:'Mestre',            desc:'Alcançou 1500 XP' },
+  { icon:'👑', title:'Mestre',            desc:'Alcançou a patente Mestre ('+XP_MESTRE+' XP)' },
+  { icon:'🏆', title:'Lenda',             desc:'Alcançou a patente máxima — Lenda ('+XP_LENDA+' XP)' },
   { icon:'💪', title:'Dedicado',          desc:'14 dias seguidos de estudo' },
   { icon:'🔆', title:'Sequência 30 dias', desc:'30 dias seguidos — imbatível!' },
   { icon:'🌐', title:'Polímata',          desc:'Respondeu em 5 ou mais disciplinas' },
@@ -6814,14 +6876,446 @@ function QAlts({q, resp, dark, onAnswer, onNext}){
 /* ── Smart queue helpers (module-level) ── */
 const _getSeenQs=()=>{try{return JSON.parse(localStorage.getItem('ap_seen_qs')||'{}')}catch{return{}}};
 const _markSeen=id=>{try{const s=_getSeenQs();s[id]=Date.now();localStorage.setItem('ap_seen_qs',JSON.stringify(s));}catch{}};
-const _buildSmartQueue=arr=>{
-  const seen=_getSeenQs();const now=Date.now();
-  const DAY=86400000,WEEK=7*DAY;
-  const fresh=[],week=[],today=[];
-  arr.forEach(q=>{const t=seen[q.id];if(!t||now-t>WEEK)fresh.push(q);else if(now-t>DAY)week.push(q);else today.push(q);});
-  const sh=a=>[...a].sort(()=>Math.random()-.5);
-  return[...sh(fresh),...sh(week),...sh(today)];
+
+/* ════════ REPETIÇÃO ESPAÇADA (tipo Anki) ════════
+   Cada questão guarda: reps (nº de acertos seguidos), interval (dias até revisar),
+   due (timestamp de quando volta). Errar zera o intervalo (volta em 1 dia).
+   Acertar avança: 1 → 3 → 7 → 15 → 30 → 60 dias. */
+const _SR_STEPS=[1,3,7,15,30,60];
+const _getSR=()=>{try{return JSON.parse(localStorage.getItem('ap_sr')||'{}')}catch{return{}}};
+const _saveSR=sr=>{try{localStorage.setItem('ap_sr',JSON.stringify(sr));}catch{}};
+const _srReview=(id,acertou)=>{
+  if(!id) return;
+  const sr=_getSR();const now=Date.now();const DAY=86400000;
+  const cur=sr[id]||{reps:0,interval:1};
+  let reps=acertou?cur.reps+1:0;
+  const interval=_SR_STEPS[Math.min(reps,_SR_STEPS.length-1)];
+  sr[id]={reps,interval,due:now+(acertou?interval*DAY:DAY),last:now};
+  _saveSR(sr);
 };
+/* Quantas questões estão "vencidas" (due<=agora) para revisar hoje */
+const _srDueCount=()=>{
+  const sr=_getSR();const now=Date.now();let n=0;
+  for(const id in sr){ if(sr[id].due<=now) n++; }
+  return n;
+};
+
+const _buildSmartQueue=arr=>{
+  const seen=_getSeenQs();const sr=_getSR();const now=Date.now();
+  const DAY=86400000,WEEK=7*DAY;
+  const due=[],fresh=[],week=[],today=[];
+  arr.forEach(q=>{
+    const s=sr[q.id];
+    if(s && s.due<=now){ due.push(q); return; }       // vencida na repetição espaçada → prioridade máxima
+    const t=seen[q.id];
+    if(!t||now-t>WEEK)fresh.push(q);
+    else if(now-t>DAY)week.push(q);
+    else today.push(q);
+  });
+  const sh=a=>[...a].sort(()=>Math.random()-.5);
+  return[...sh(due),...sh(fresh),...sh(week),...sh(today)];
+};
+
+/* ════════ FAVORITOS (⭐) ════════ */
+const _getFavs=()=>{try{return JSON.parse(localStorage.getItem('ap_favorites')||'[]')}catch{return[]}};
+const _saveFavs=a=>{try{localStorage.setItem('ap_favorites',JSON.stringify(a));}catch{}};
+const _isFav=id=>_getFavs().includes(String(id));
+const _toggleFav=id=>{
+  id=String(id);const f=_getFavs();
+  const nf=f.includes(id)?f.filter(x=>x!==id):[...f,id];
+  _saveFavs(nf);return nf.includes(id);
+};
+
+/* ════════ CADERNO DE ERROS ════════
+   Salva questões erradas com contador. Ao acertar de novo, remove. */
+const _getErrors=()=>{try{return JSON.parse(localStorage.getItem('ap_errors')||'{}')}catch{return{}}};
+const _saveErrors=o=>{try{localStorage.setItem('ap_errors',JSON.stringify(o));}catch{}};
+const _addError=q=>{
+  if(!q||!q.id) return;
+  const e=_getErrors();const id=String(q.id);
+  e[id]={id,disc:q.disc||'Geral',tema:q.tema||'',enunciado:(q.enunciado||'').slice(0,160),
+         count:(e[id]?.count||0)+1,date:Date.now()};
+  _saveErrors(e);
+};
+const _clearError=id=>{const e=_getErrors();delete e[String(id)];_saveErrors(e);};
+const _errorCount=()=>Object.keys(_getErrors()).length;
+
+/* ════════ HISTÓRICO DE SIMULADOS ════════ */
+const _getSimHist=()=>{try{return JSON.parse(localStorage.getItem('ap_sim_hist')||'[]')}catch{return[]}};
+const _addSimHist=rec=>{
+  try{
+    const h=_getSimHist();
+    h.unshift({...rec,date:Date.now()});
+    localStorage.setItem('ap_sim_hist',JSON.stringify(h.slice(0,50)));
+  }catch{}
+};
+
+/* ════════ HISTÓRICO DIÁRIO (para gráfico de evolução) ════════
+   Snapshot diário do total e acertos acumulados → deriva taxa por dia. */
+const _getDaily=()=>{try{return JSON.parse(localStorage.getItem('ap_hist_daily')||'{}')}catch{return{}}};
+const _snapDaily=(tot,ok)=>{
+  try{
+    const h=_getDaily();const day=new Date().toISOString().slice(0,10);
+    h[day]={tot,ok};
+    localStorage.setItem('ap_hist_daily',JSON.stringify(h));
+  }catch{}
+};
+
+/* ════════ HISTÓRICO DE REDAÇÕES ════════ */
+const _getRedacoes=()=>{try{return JSON.parse(localStorage.getItem('ap_redacoes')||'[]')}catch{return[]}};
+const _addRedacao=rec=>{
+  try{const h=_getRedacoes();h.unshift({...rec,date:Date.now()});
+    localStorage.setItem('ap_redacoes',JSON.stringify(h.slice(0,30)));}catch{}
+};
+
+/* ════════ NOTIFICAÇÕES DE STREAK (lembrete diário de estudo) ════════
+   100% client-side: usa a Notification API + agendamento por setTimeout
+   enquanto o app está aberto (não depende de servidor de push). O objetivo
+   é lembrar o aluno de manter a sequência (streak) e voltar a estudar. */
+const _notifSupported=()=>typeof window!=='undefined' && 'Notification' in window;
+const _notifOn=()=>{try{return localStorage.getItem('ap_notif')==='1'}catch{return false}};
+const _notifSet=v=>{try{localStorage.setItem('ap_notif',v?'1':'0')}catch{}};
+const _todayKey=()=>new Date().toISOString().slice(0,10);
+const _studiedToday=()=>{try{return localStorage.getItem('ap_last_study')===_todayKey()}catch{return false}};
+const _markStudiedToday=()=>{try{localStorage.setItem('ap_last_study',_todayKey())}catch{}};
+async function _requestNotifPerm(){
+  if(!_notifSupported()) return 'unsupported';
+  try{
+    if(Notification.permission==='granted') return 'granted';
+    if(Notification.permission==='denied')  return 'denied';
+    const r=await Notification.requestPermission();
+    return r;
+  }catch(e){ return 'denied'; }
+}
+function _showStreakNotif(){
+  try{
+    if(!_notifSupported()||Notification.permission!=='granted') return false;
+    if(_studiedToday()) return false;                 // já estudou hoje → não incomoda
+    if(localStorage.getItem('ap_notif_last')===_todayKey()) return false; // 1x por dia
+    localStorage.setItem('ap_notif_last',_todayKey());
+    const streak=(()=>{try{return JSON.parse(localStorage.getItem('ap_user')||'{}').streak||0}catch{return 0}})();
+    const body=streak>0
+      ? `Você está com ${streak} dia${streak>1?'s':''} de sequência! 🔥 Responda algumas questões hoje para não perder o ritmo.`
+      : 'Bora estudar? 📚 Comece sua sequência respondendo algumas questões hoje!';
+    const n=new Notification('Aprova IA — hora de estudar!',{body,icon:APP_ICON,tag:'ap-streak',renotify:true});
+    n.onclick=()=>{try{window.focus();n.close();}catch(e){}};
+    return true;
+  }catch(e){ return false; }
+}
+/* agenda um lembrete para ~20h; se já passou, lembra em 2h (teto de 6h/sessão) */
+let _notifTimer=null;
+function _scheduleStreakNotif(){
+  try{
+    if(_notifTimer){ clearTimeout(_notifTimer); _notifTimer=null; }
+    if(!_notifOn()||!_notifSupported()||Notification.permission!=='granted') return;
+    const now=new Date();
+    const target=new Date(); target.setHours(20,0,0,0);
+    let ms=target-now;
+    if(ms<0)   ms=2*60*60*1000;
+    if(ms>6*60*60*1000) ms=6*60*60*1000;
+    _notifTimer=setTimeout(()=>{ _showStreakNotif(); _scheduleStreakNotif(); }, ms);
+  }catch(e){}
+}
+
+/* ════════════ FERRAMENTAS DE ESTUDO (overlays) ════════════ */
+
+/* Modal em tela cheia com header colorido e botão de voltar */
+function ToolOverlay({title, subtitle, onClose, children, accent='#163A70', headerRight}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:9998,background:'var(--bg)',display:'flex',flexDirection:'column',maxWidth:430,margin:'0 auto'}} className="fadeUp">
+      <div style={{background:accent,color:'#fff',padding:'38px 16px 16px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+        <button onClick={onClose} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:10,width:36,height:36,fontSize:18,cursor:'pointer',flexShrink:0}}>←</button>
+        <div style={{flex:1,minWidth:0}}>
+          <h2 style={{fontSize:17,fontWeight:900,margin:0}}>{title}</h2>
+          {subtitle && <p style={{fontSize:12,color:'rgba(255,255,255,.7)',margin:'2px 0 0'}}>{subtitle}</p>}
+        </div>
+        {headerRight}
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:16}}>{children}</div>
+    </div>
+  );
+}
+
+/* Card de prática independente (usado em Erros, Favoritas). Responde e dá feedback. */
+function PracticeCard({q, dark, onResult}){
+  const [resp,setResp]=useState(null);
+  const [revealed,setRevealed]=useState(false);
+  const [fav,setFav]=useState(_isFav(q.id));
+  const difColor = d => d==='Fácil'?'green':d==='Difícil'?'red':'gold';
+  const alts=['a','b','c','d','e'].filter(l=>q[l]&&String(q[l]).trim());
+  const doAnswer=(l)=>{
+    if(resp)return;
+    const acertou=l===q.ok;
+    setResp(l);fxAnswer(acertou);
+    if(q?.id){_srReview(q.id,acertou);if(acertou)_clearError(q.id);else _addError(q);}
+    onResult&&onResult(acertou);
+  };
+  const doSelf=(acertou)=>{
+    if(resp)return;
+    setResp(acertou?'ok':'err');fxAnswer(acertou);
+    if(q?.id){_srReview(q.id,acertou);if(acertou)_clearError(q.id);else _addError(q);}
+    onResult&&onResult(acertou);
+  };
+  return (
+    <Card className="mb-3">
+      <div style={{display:'flex',gap:6,alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',flex:1}}>
+          <Chip color="blue">{q.disc}</Chip>
+          <Chip color={difColor(q.dif)}>{q.dif}</Chip>
+          {q.tema && <Chip color="gray">{q.tema}</Chip>}
+          {q.tipo==='dissertativa' && <Chip color="gold">✏️ Dissertativa</Chip>}
+        </div>
+        <button onClick={()=>{setFav(_toggleFav(q.id));}} title={fav?'Remover dos favoritos':'Salvar questão'}
+          style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:20,lineHeight:1,padding:0,filter:fav?'none':'grayscale(1) opacity(.5)'}}>
+          {fav?'⭐':'☆'}
+        </button>
+      </div>
+      {renderMd(q.enunciado,{fontSize:14,color:'var(--text)',lineHeight:1.6,margin:'0 0 12px'})}
+      {q.tipo==='multipla' ? (
+        alts.length===0 ? (
+          <p style={{fontSize:13,color:'var(--muted)',textAlign:'center'}}>Esta questão requer análise da imagem acima.</p>
+        ) : (
+          <>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {alts.map(l=>{
+                let bg='var(--card2)',bc='var(--border)',tx='var(--text)';
+                if(resp){
+                  if(l===q.ok){bg=dark?'rgba(22,163,74,.22)':'#F0FDF4';bc='#16A34A';tx=dark?'#4ADE80':'#14532D';}
+                  else if(l===resp){bg=dark?'rgba(239,68,68,.22)':'#FEF2F2';bc='#EF4444';tx=dark?'#F87171':'#991B1B';}
+                  else{bg='var(--card2)';bc='var(--border)';tx='var(--muted)';}
+                }
+                return (
+                  <button key={l} onClick={()=>doAnswer(l)} disabled={!!resp}
+                    style={{width:'100%',textAlign:'left',padding:'11px 14px',borderRadius:12,border:`2px solid ${bc}`,background:bg,color:tx,fontSize:14,cursor:resp?'default':'pointer',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+                    <span style={{fontWeight:700,textTransform:'uppercase',marginRight:8}}>{l})</span>{q[l]}
+                  </button>
+                );
+              })}
+            </div>
+            {resp && q.exp && (
+              <div style={{marginTop:10,padding:'10px 12px',borderRadius:12,background:dark?'rgba(30,58,95,.35)':'#EFF6FF',border:`1px solid ${dark?'rgba(56,189,248,.3)':'#BFDBFE'}`}}>
+                <p style={{fontSize:13,color:'var(--sub)',lineHeight:1.5,margin:0,whiteSpace:'pre-wrap'}}><b style={{color:dark?'#38BDF8':'#163A70'}}>{resp===q.ok?'✅ Correto! ':'❌ Gabarito '+(q.ok||'').toUpperCase()+') '}</b>{q.exp}</p>
+              </div>
+            )}
+          </>
+        )
+      ) : (
+        <>
+          {!revealed ? (
+            <Btn v="primary" full={true} onClick={()=>setRevealed(true)}>✏️ Ver Gabarito</Btn>
+          ) : (
+            <>
+              <div style={{padding:'10px 12px',borderRadius:12,background:dark?'rgba(22,163,74,.15)':'#F0FDF4',border:`1px solid ${dark?'rgba(74,222,128,.3)':'#BBF7D0'}`,marginBottom:10}}>
+                <p style={{fontWeight:700,color:dark?'#4ADE80':'#14532D',fontSize:13,margin:'0 0 6px'}}>📝 Gabarito</p>
+                <p style={{fontSize:14,color:'var(--text)',lineHeight:1.6,margin:0}}>{q.resposta}</p>
+              </div>
+              {!resp && (
+                <div style={{display:'flex',gap:10}}>
+                  <button onClick={()=>doSelf(false)} style={{flex:1,padding:'11px',borderRadius:12,border:'2px solid #EF4444',background:dark?'rgba(239,68,68,.18)':'#FEF2F2',color:dark?'#F87171':'#991B1B',fontWeight:700,fontSize:14,cursor:'pointer'}}>❌ Errei</button>
+                  <button onClick={()=>doSelf(true)} style={{flex:1,padding:'11px',borderRadius:12,border:'2px solid #16A34A',background:dark?'rgba(22,163,74,.18)':'#F0FDF4',color:dark?'#4ADE80':'#14532D',fontWeight:700,fontSize:14,cursor:'pointer'}}>✅ Acertei</button>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+      {resp && <p style={{textAlign:'center',fontSize:12,fontWeight:700,color:(resp===q.ok||resp==='ok')?'#16A34A':'#EF4444',margin:'10px 0 0'}}>{(resp===q.ok||resp==='ok')?'Boa! ✅':'Continue praticando 💪'}</p>}
+    </Card>
+  );
+}
+
+/* Caderno de Erros — questões que o aluno errou, para refazer */
+function ErrorNotebook({QS, dark, onClose}){
+  const [errors,setErrors]=useState(()=>Object.values(_getErrors()).sort((a,b)=>b.date-a.date));
+  const [solved,setSolved]=useState({});
+  const qById = React.useMemo(()=>{const m={};QS.forEach(q=>m[String(q.id)]=q);return m;},[QS.length]);
+  const clearAll=()=>{ if(window.confirm('Limpar todo o caderno de erros?')){ _saveErrors({}); setErrors([]); } };
+  return (
+    <ToolOverlay title="📕 Caderno de Erros" subtitle={`${errors.length} questão(ões) para revisar`} onClose={onClose} accent="#B91C1C"
+      headerRight={errors.length>0 && <button onClick={clearAll} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',borderRadius:10,padding:'7px 11px',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>Limpar</button>}>
+      {errors.length===0 ? (
+        <div style={{textAlign:'center',padding:'48px 20px'}}>
+          <p style={{fontSize:44,margin:'0 0 12px'}}>🎯</p>
+          <p style={{fontSize:16,fontWeight:700,color:'var(--text)',margin:'0 0 6px'}}>Nenhum erro registrado!</p>
+          <p style={{fontSize:13,color:'var(--sub)',margin:0,lineHeight:1.6}}>Quando você errar uma questão, ela aparece aqui para você revisar e dominar. Acertando de novo, ela sai da lista.</p>
+        </div>
+      ) : (
+        <>
+          <p style={{fontSize:12,color:'var(--sub)',margin:'0 0 12px',lineHeight:1.5}}>💡 Refaça as questões que você errou. Acertando, elas saem automaticamente do caderno.</p>
+          {errors.map(e=>{
+            const q=qById[String(e.id)];
+            if(!q) return null;
+            if(solved[e.id]) return (
+              <Card key={e.id} className="mb-3" style={{background:dark?'rgba(22,163,74,.12)':'#F0FDF4',border:`1px solid ${dark?'rgba(74,222,128,.3)':'#BBF7D0'}`,textAlign:'center'}}>
+                <p style={{fontSize:14,fontWeight:700,color:dark?'#4ADE80':'#16A34A',margin:0}}>✅ Dominou! Removida do caderno.</p>
+              </Card>
+            );
+            return <PracticeCard key={e.id} q={q} dark={dark} onResult={(ac)=>{ if(ac){ setSolved(s=>({...s,[e.id]:true})); } }}/>;
+          })}
+        </>
+      )}
+    </ToolOverlay>
+  );
+}
+
+/* Favoritas — questões que o aluno marcou com ⭐ */
+function FavoritesList({QS, dark, onClose}){
+  const [favIds,setFavIds]=useState(()=>_getFavs());
+  const qById = React.useMemo(()=>{const m={};QS.forEach(q=>m[String(q.id)]=q);return m;},[QS.length]);
+  const favQs = favIds.map(id=>qById[String(id)]).filter(Boolean);
+  return (
+    <ToolOverlay title="⭐ Questões Favoritas" subtitle={`${favQs.length} salva(s)`} onClose={onClose} accent="#B45309">
+      {favQs.length===0 ? (
+        <div style={{textAlign:'center',padding:'48px 20px'}}>
+          <p style={{fontSize:44,margin:'0 0 12px'}}>⭐</p>
+          <p style={{fontSize:16,fontWeight:700,color:'var(--text)',margin:'0 0 6px'}}>Nenhuma favorita ainda</p>
+          <p style={{fontSize:13,color:'var(--sub)',margin:0,lineHeight:1.6}}>Toque na estrela ☆ de qualquer questão para salvá-la aqui e revisar quando quiser.</p>
+        </div>
+      ) : (
+        favQs.map(q=><PracticeCard key={q.id} q={q} dark={dark} onResult={()=>setFavIds(_getFavs())}/>)
+      )}
+    </ToolOverlay>
+  );
+}
+
+/* Revisão Rápida — 5 questões objetivas contra o relógio */
+function QuickReview({QS, auth, addAnswer, dark, onClose}){
+  const N=5, SECONDS=5*60;
+  const [qs]=useState(()=>{
+    const pool=QS.filter(q=>q.tipo==='multipla' && ['a','b','c','d','e'].some(l=>q[l]&&String(q[l]).trim()));
+    return _buildSmartQueue(pool).slice(0,N);
+  });
+  const [idx,setIdx]=useState(0);
+  const [resp,setResp]=useState(null);
+  const [ok,setOk]=useState(0);
+  const [timer,setTimer]=useState(SECONDS);
+  const [done,setDone]=useState(false);
+  useEffect(()=>{
+    if(done)return;
+    const iv=setInterval(()=>setTimer(v=>{if(v<=1){clearInterval(iv);setDone(true);return 0;}return v-1;}),1000);
+    return ()=>clearInterval(iv);
+  },[done]);
+  const q=qs[idx];
+  const answer=(l)=>{
+    if(resp||!q)return;
+    const acertou=l===q.ok;
+    setResp(l);fxAnswer(acertou);
+    if(acertou)setOk(o=>o+1);
+    addAnswer&&addAnswer(q.disc||'Geral',acertou);
+    if(auth&&auth.addXP)auth.addXP(acertou?(q.xp||10):1);
+    if(q.id){_markSeen(q.id);_srReview(q.id,acertou);if(acertou)_clearError(q.id);else _addError(q);}
+  };
+  const next=()=>{
+    if(idx+1>=qs.length){setDone(true);return;}
+    setIdx(i=>i+1);setResp(null);
+  };
+  const m=Math.floor(timer/60),s=timer%60;
+  if(done||!q){
+    const pct=qs.length?Math.round(ok/qs.length*100):0;
+    return (
+      <ToolOverlay title="⚡ Revisão Rápida" subtitle="Resultado" onClose={onClose} accent="#0891B2">
+        <Card className="text-center fadeUp" style={{textAlign:'center',padding:'28px 16px'}}>
+          <div style={{fontSize:52,marginBottom:8}}>{pct>=80?'🏆':pct>=50?'👍':'📚'}</div>
+          <p style={{fontSize:44,fontWeight:900,color:pct>=50?'#16A34A':'#D97706',margin:0}}>{ok}/{qs.length}</p>
+          <p style={{fontSize:13,color:'var(--sub)',margin:'4px 0 0'}}>{pct}% de aproveitamento</p>
+        </Card>
+        <div style={{marginTop:16}}><Btn v="gold" full={true} onClick={onClose}>Concluir</Btn></div>
+      </ToolOverlay>
+    );
+  }
+  const alts=['a','b','c','d','e'].filter(l=>q[l]&&String(q[l]).trim());
+  return (
+    <ToolOverlay title="⚡ Revisão Rápida" subtitle={`Questão ${idx+1} de ${qs.length}`} onClose={onClose} accent="#0891B2"
+      headerRight={<span style={{fontFamily:'monospace',fontWeight:800,fontSize:16,color:timer<30?'#FCA5A5':'#fff',flexShrink:0}}>{m}:{String(s).padStart(2,'0')}</span>}>
+      <div style={{marginBottom:12}}><Progress val={(idx/qs.length)*100} color="#0891B2"/></div>
+      <Card className="mb-3">
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+          <Chip color="blue">{q.disc}</Chip>
+          <Chip color={q.dif==='Fácil'?'green':q.dif==='Difícil'?'red':'gold'}>{q.dif}</Chip>
+        </div>
+        {renderMd(q.enunciado,{fontSize:14,color:'var(--text)',lineHeight:1.6,margin:0})}
+      </Card>
+      <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+        {alts.map(l=>{
+          let bg='var(--card2)',bc='var(--border)',tx='var(--text)';
+          if(resp){
+            if(l===q.ok){bg=dark?'rgba(22,163,74,.22)':'#F0FDF4';bc='#16A34A';tx=dark?'#4ADE80':'#14532D';}
+            else if(l===resp){bg=dark?'rgba(239,68,68,.22)':'#FEF2F2';bc='#EF4444';tx=dark?'#F87171':'#991B1B';}
+            else{bg='var(--card2)';bc='var(--border)';tx='var(--muted)';}
+          }
+          return (
+            <button key={l} onClick={()=>answer(l)} disabled={!!resp}
+              style={{width:'100%',textAlign:'left',padding:'12px 16px',borderRadius:14,border:`2px solid ${bc}`,background:bg,color:tx,fontSize:14,cursor:resp?'default':'pointer',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+              <span style={{fontWeight:700,textTransform:'uppercase',marginRight:8}}>{l})</span>{q[l]}
+            </button>
+          );
+        })}
+      </div>
+      {resp && <Btn v="gold" full={true} onClick={next}>{idx+1>=qs.length?'Ver resultado →':'Próxima →'}</Btn>}
+    </ToolOverlay>
+  );
+}
+
+/* Pomodoro — timer de foco 25/5 com som ao terminar */
+function PomodoroWidget({onClose}){
+  const FOCUS=25*60, BREAK=5*60;
+  const [mode,setMode]=useState('focus'); // 'focus' | 'break'
+  const [secs,setSecs]=useState(FOCUS);
+  const [running,setRunning]=useState(false);
+  const [cycles,setCycles]=useState(0);
+  useEffect(()=>{
+    if(!running)return;
+    const iv=setInterval(()=>{
+      setSecs(v=>{
+        if(v<=1){
+          playSound(mode==='focus'?'achievement':'levelup');
+          vibrate([80,50,80]);
+          if(mode==='focus'){setCycles(c=>c+1);setMode('break');return BREAK;}
+          else{setMode('focus');return FOCUS;}
+        }
+        return v-1;
+      });
+    },1000);
+    return ()=>clearInterval(iv);
+  },[running,mode]);
+  const reset=()=>{setRunning(false);setMode('focus');setSecs(FOCUS);};
+  const m=Math.floor(secs/60),s=secs%60;
+  const total=mode==='focus'?FOCUS:BREAK;
+  const pct=Math.round(((total-secs)/total)*100);
+  const accent=mode==='focus'?'#DC2626':'#0891B2';
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}} className="fadeUp" onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'var(--card)',borderRadius:24,padding:'28px 24px',width:'100%',maxWidth:340,textAlign:'center',boxShadow:'0 12px 48px rgba(0,0,0,.4)'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <span style={{fontSize:16,fontWeight:900,color:'var(--text)'}}>🍅 Pomodoro</span>
+          <button onClick={onClose} style={{background:'var(--card2)',border:'none',color:'var(--sub)',borderRadius:8,width:30,height:30,fontSize:16,cursor:'pointer'}}>✕</button>
+        </div>
+        <div style={{display:'inline-flex',gap:6,marginBottom:20,background:'var(--card2)',borderRadius:99,padding:4}}>
+          {[{k:'focus',l:'Foco 25min'},{k:'break',l:'Pausa 5min'}].map(t=>(
+            <button key={t.k} onClick={()=>{setMode(t.k);setSecs(t.k==='focus'?FOCUS:BREAK);setRunning(false);}}
+              style={{padding:'6px 14px',borderRadius:99,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,background:mode===t.k?accent:'transparent',color:mode===t.k?'#fff':'var(--sub)'}}>{t.l}</button>
+          ))}
+        </div>
+        <div style={{position:'relative',width:180,height:180,margin:'0 auto 20px'}}>
+          <svg width="180" height="180" style={{transform:'rotate(-90deg)'}}>
+            <circle cx="90" cy="90" r="80" fill="none" stroke="var(--border)" strokeWidth="10"/>
+            <circle cx="90" cy="90" r="80" fill="none" stroke={accent} strokeWidth="10" strokeLinecap="round"
+              strokeDasharray={2*Math.PI*80} strokeDashoffset={2*Math.PI*80*(1-pct/100)} style={{transition:'stroke-dashoffset 1s linear'}}/>
+          </svg>
+          <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+            <span style={{fontSize:42,fontWeight:900,color:'var(--text)',fontFamily:'monospace'}}>{m}:{String(s).padStart(2,'0')}</span>
+            <span style={{fontSize:12,color:'var(--sub)',fontWeight:600}}>{mode==='focus'?'Hora de focar':'Hora de descansar'}</span>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+          <button onClick={()=>setRunning(r=>!r)} style={{flex:1,padding:'13px',borderRadius:14,border:'none',cursor:'pointer',fontWeight:800,fontSize:15,background:accent,color:'#fff'}}>{running?'⏸ Pausar':'▶ Iniciar'}</button>
+          <button onClick={reset} style={{padding:'13px 18px',borderRadius:14,border:'1px solid var(--border)',cursor:'pointer',fontWeight:700,fontSize:15,background:'var(--card2)',color:'var(--text)'}}>↺</button>
+        </div>
+        <p style={{fontSize:12,color:'var(--sub)',margin:'16px 0 0'}}>🍅 Ciclos concluídos hoje: <b style={{color:'var(--text)'}}>{cycles}</b></p>
+      </div>
+    </div>
+  );
+}
 
 function Questoes({ go, auth }) {
   const {allQuestions:QS} = useQuestions();
@@ -6837,6 +7331,10 @@ function Questoes({ go, auth }) {
   const [stats,setStats]=useState({tot:0,ok:0});
   const [queue,setQueue]=useState(()=>_buildSmartQueue(QS));
   const {dark}=useThemeCtx();
+  // Ferramentas de estudo (overlays) + tick p/ atualizar favorito/contadores
+  const [tool,setTool]=useState(null); // 'errors' | 'favs' | 'quick' | 'pomodoro' | null
+  const [uiTick,setUiTick]=useState(0);
+  const bump=()=>setUiTick(t=>t+1);
 
   // Gamification state
   const [xpParticles,setXpParticles]=useState([]);
@@ -6883,7 +7381,8 @@ function Questoes({ go, auth }) {
       if(a.title==='Perfeito')           return taxa===100&&gs.tot>=5;
       if(a.title==='Sequência 3 dias')   return (gs.streak||0)>=3;
       if(a.title==='Sequência 7 dias')   return (gs.streak||0)>=7;
-      if(a.title==='Mestre')             return xp>=1500;
+      if(a.title==='Mestre')             return xp>=XP_MESTRE;
+      if(a.title==='Lenda')              return xp>=XP_LENDA;
       if(a.title==='Dedicado')           return (gs.streak||0)>=14;
       if(a.title==='Sequência 30 dias')  return (gs.streak||0)>=30;
       if(a.title==='Polímata')           return discCount>=5;
@@ -6910,6 +7409,11 @@ function Questoes({ go, auth }) {
     }
     prevAchRef.current = cur;
   },[globalStats.tot, globalStats.ok, globalStats.streak, u.xp]);
+
+  // Snapshot diário para o gráfico de evolução temporal
+  useEffect(()=>{
+    if(globalStats.tot>0) _snapDaily(globalStats.tot, globalStats.ok);
+  },[globalStats.tot, globalStats.ok]);
 
   // Spawn XP particles on the bar
   const spawnParticles = () => {
@@ -6942,6 +7446,18 @@ function Questoes({ go, auth }) {
     }
   };
 
+  const registerResult = (acertou) => {
+    // feedback tátil/sonoro (o som 'xp' de acerto já vem do handleXPGain)
+    if(!acertou) playSound('wrong');
+    vibrate(acertou?30:[40,40,40]);
+    // repetição espaçada + caderno de erros
+    if(q?.id){
+      _markSeen(q.id);
+      _srReview(q.id, acertou);
+      if(acertou) _clearError(q.id); else _addError(q);
+    }
+  };
+
   const answer = (l) => {
     if(resp) return;
     const acertou=l===q.ok;
@@ -6950,7 +7466,7 @@ function Questoes({ go, auth }) {
     setStats(s=>({tot:s.tot+1, ok:s.ok+(acertou?1:0)}));
     addAnswer(q.disc||'Geral', acertou);
     handleXPGain(acertou, xpAmt);
-    if(q?.id) _markSeen(q.id);
+    registerResult(acertou);
   };
 
   const selfEval = (acertou) => {
@@ -6960,7 +7476,7 @@ function Questoes({ go, auth }) {
     setStats(s=>({tot:s.tot+1, ok:s.ok+(acertou?1:0)}));
     addAnswer(q.disc||'Geral', acertou);
     handleXPGain(acertou, xpAmt);
-    if(q?.id) _markSeen(q.id);
+    registerResult(acertou);
   };
 
   const next = () => {
@@ -7015,7 +7531,9 @@ function Questoes({ go, auth }) {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <div>
               <span style={{fontSize:13,fontWeight:700,color:'#38BDF8'}}>{lv.icon} {lv.name}</span>
-              <span style={{fontSize:11,color:'rgba(255,255,255,.5)',marginLeft:8}}>→ próx. nível</span>
+              {lv.next
+                ? <span style={{fontSize:11,color:'rgba(255,255,255,.5)',marginLeft:8}}>→ {lv.next.icon} {lv.next.name}</span>
+                : <span style={{fontSize:11,color:'#FCD34D',marginLeft:8}}>· patente máxima 🏆</span>}
             </div>
             <span style={{fontSize:13,fontWeight:700,color:'#fff'}}>{u.xp||0} <span style={{fontSize:10,color:'rgba(255,255,255,.5)',fontWeight:400}}>XP</span></span>
           </div>
@@ -7027,7 +7545,9 @@ function Questoes({ go, auth }) {
               <span key={p.id} className="xp-particle" style={{left:`${p.x}%`,'--xdx':`${p.dx}px`,top:-4}}>{p.emoji}</span>
             ))}
           </div>
-          <p style={{fontSize:10,color:'rgba(255,255,255,.4)',margin:'4px 0 0',textAlign:'right'}}>{lv.pct}% para o próximo nível</p>
+          <p style={{fontSize:10,color:'rgba(255,255,255,.4)',margin:'4px 0 0',textAlign:'right'}}>
+            {lv.next ? `faltam ${Math.max(0,lv.next.min-(u.xp||0))} XP para ${lv.next.name}` : 'Patente máxima alcançada!'}
+          </p>
         </div>
 
         {/* Linha 3: stats em 4 cards */}
@@ -7057,6 +7577,28 @@ function Questoes({ go, auth }) {
           </div>
         </div>
       </div>
+
+      {/* ══ TOOLBAR DE FERRAMENTAS DE ESTUDO ══ */}
+      <div style={{display:'flex',gap:8,overflowX:'auto',padding:'12px 14px',background:'var(--card)',borderBottom:'1px solid var(--border)'}}>
+        {[
+          {k:'quick',   icon:'⚡',  label:'Revisão rápida', badge:null},
+          {k:'errors',  icon:'📕',  label:'Erros',          badge:_errorCount()},
+          {k:'favs',    icon:'⭐',  label:'Favoritas',      badge:_getFavs().length},
+          {k:'pomodoro',icon:'🍅',  label:'Pomodoro',       badge:null},
+        ].map(b=>(
+          <button key={b.k} onClick={()=>setTool(b.k)}
+            style={{flexShrink:0,display:'flex',alignItems:'center',gap:6,padding:'8px 13px',borderRadius:99,border:'1px solid var(--border)',background:'var(--card2)',color:'var(--text)',fontSize:12,fontWeight:700,cursor:'pointer',position:'relative'}}>
+            <span style={{fontSize:15}}>{b.icon}</span>{b.label}
+            {b.badge>0 && <span style={{background:'#EF4444',color:'#fff',borderRadius:99,fontSize:10,fontWeight:800,minWidth:17,height:17,display:'inline-flex',alignItems:'center',justifyContent:'center',padding:'0 4px'}}>{b.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Overlays de ferramentas */}
+      {tool==='errors'   && <ErrorNotebook QS={QS} dark={dark} onClose={()=>{setTool(null);bump();}}/>}
+      {tool==='favs'     && <FavoritesList QS={QS} dark={dark} onClose={()=>{setTool(null);bump();}}/>}
+      {tool==='quick'    && <QuickReview QS={QS} auth={auth} addAnswer={addAnswer} dark={dark} onClose={()=>{setTool(null);bump();}}/>}
+      {tool==='pomodoro' && <PomodoroWidget onClose={()=>setTool(null)}/>}
 
       {/* Filtros */}
       {showF && (
@@ -7102,11 +7644,19 @@ function Questoes({ go, auth }) {
         <div style={{padding:'16px'}}>
           {/* Questão */}
           <Card className="mb-3">
-            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-              <Chip color="blue">{q.disc}</Chip>
-              <Chip color={difColor(q.dif)}>{q.dif}</Chip>
-              <Chip color="gray">{q.tema}</Chip>
-              {q.tipo==='dissertativa' && <Chip color="gold">✏️ Dissertativa</Chip>}
+            <div style={{display:'flex',gap:6,alignItems:'flex-start',justifyContent:'space-between',marginBottom:10}}>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',flex:1}}>
+                <Chip color="blue">{q.disc}</Chip>
+                <Chip color={difColor(q.dif)}>{q.dif}</Chip>
+                {q.tema && <Chip color="gray">{q.tema}</Chip>}
+                {q.tipo==='dissertativa' && <Chip color="gold">✏️ Dissertativa</Chip>}
+              </div>
+              <button onClick={()=>{_toggleFav(q.id);bump();}} title={_isFav(q.id)?'Remover dos favoritos':'Salvar questão'}
+                style={{flexShrink:0,background:'none',border:'none',cursor:'pointer',fontSize:22,lineHeight:1,padding:0,filter:_isFav(q.id)?'none':'grayscale(1) opacity(.5)',transition:'transform .15s'}}
+                onMouseDown={e=>e.currentTarget.style.transform='scale(1.25)'}
+                onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
+                {_isFav(q.id)?'⭐':'☆'}
+              </button>
             </div>
             {renderMd(q.enunciado,{fontSize:14,color:'var(--text)',lineHeight:1.6,margin:0})}
           </Card>
@@ -7203,7 +7753,9 @@ function Questoes({ go, auth }) {
 }
 
 /* ───────── SIMULADOS ───────── */
-function Simulados() {
+function Simulados({ go, auth }) {
+  const {dark}=useThemeCtx();
+  const {addAnswer}=useStudyStats();
   const [fase,setFase]=useState('menu');
   const [tipo,setTipo]=useState(null);
   const [tipoQ,setTipoQ]=useState('misto'); // 'misto' | 'objetiva' | 'dissertativa'
@@ -7212,6 +7764,9 @@ function Simulados() {
   const [resps,setResps]=useState({});
   const [timer,setTimer]=useState(0);
   const [disGab,setDisGab]=useState(false); // gabarito visível p/ dissertativa atual
+  const [simHist,setSimHist]=useState(()=>_getSimHist());
+  const savedRef=useRef(false);
+  const cardBdr=dark?'#233':'#E5E7EB';
 
   const tipos = [
     { id:'rapido', icon:'⚡', title:'Simulado Rápido',   desc:'10 questões variadas',     n:10, min:15, cor:'#163A70' },
@@ -7233,6 +7788,7 @@ function Simulados() {
       return true;
     });
     const shuffled = [...pool,...pool,...pool,...pool,...pool,...pool].sort(()=>Math.random()-.5).slice(0,t.n);
+    savedRef.current=false;
     setQs(shuffled); setTipo(t); setFase('run'); setIdx(0); setResps({}); setTimer(t.min*60); setDisGab(false);
   };
 
@@ -7245,24 +7801,49 @@ function Simulados() {
   // reset gabarito ao trocar questão
   useEffect(()=>{ setDisGab(false); },[idx]);
 
-  const answer = (l) => {
-    if(resps[idx]!==undefined) return;
-    const nr={...resps,[idx]:l}; setResps(nr);
-    if(idx<qs.length-1) setTimeout(()=>setIdx(i=>i+1),600);
-    else setTimeout(()=>setFase('result'),600);
-  };
-
   const isCorrect = (q,i) => {
     const r = resps[i];
     if(r===undefined) return false;
     return q.tipo==='multipla' ? r===q.ok : r==='ok';
   };
 
+  const answer = (l) => {
+    if(resps[idx]!==undefined) return;
+    const q=qs[idx];
+    const acertou = q.tipo==='multipla' ? l===q.ok : l==='ok';
+    // registra nas estatísticas globais + XP + som/vibração
+    addAnswer(q.disc||'Geral', acertou);
+    if(auth&&auth.addXP) auth.addXP(acertou?(q.xp||10):1);
+    fxAnswer(acertou);
+    try{ _markSeen(q.id); }catch(e){}
+    const nr={...resps,[idx]:l}; setResps(nr);
+    if(idx<qs.length-1) setTimeout(()=>setIdx(i=>i+1),600);
+    else setTimeout(()=>setFase('result'),600);
+  };
+
+  // Salva o simulado no histórico ao entrar na tela de resultado (uma única vez)
+  useEffect(()=>{
+    if(fase!=='result' || savedRef.current || !qs.length) return;
+    savedRef.current=true;
+    const tot=qs.length, resp=Object.keys(resps).length;
+    const ok=qs.filter((q,i)=>isCorrect(q,i)).length;
+    const pct=resp?Math.round(ok/resp*100):0;
+    const nota=Math.max(0,Math.min(1000,Math.round(500+(pct-50)*8)));
+    try{ _addSimHist({tipo:tipo?tipo.title:'Simulado',tot,resp,ok,pct,nota,tipoQ}); setSimHist(_getSimHist()); }catch(e){}
+    if(auth&&auth.addXP) auth.addXP(15); // bônus por concluir
+  },[fase]);
+
+  const compartilhar = async (nota,ok,tot,pct) => {
+    const txt='📊 Simulado no Aprova IA: '+nota+' pontos ENEM estimados!\n'+ok+'/'+tot+' acertos ('+pct+'% de aproveitamento) 🎯';
+    try{ if(navigator.share){ await navigator.share({title:'Aprova IA — Simulado',text:txt}); return; } }catch(e){ return; }
+    try{ await navigator.clipboard.writeText(txt); alert('Resultado copiado!'); }catch(e){ alert(txt); }
+  };
+
   if(fase==='run' && qs.length) {
     const q=qs[idx]; const m=Math.floor(timer/60); const s=timer%60;
     const ans=resps[idx];
     return (
-      <div style={{paddingBottom:20,minHeight:'100vh',background:'#f8fafc'}}>
+      <div style={{paddingBottom:20,minHeight:'100vh',background:'var(--bg)'}}>
         <div style={{background:tipo.cor,color:'#fff',padding:'40px 20px 20px'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
             <p style={{fontSize:14,fontWeight:700,margin:0,opacity:.8}}>{tipo.title}</p>
@@ -7284,11 +7865,11 @@ function Simulados() {
           {q.tipo==='multipla' ? (
             <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
               {['a','b','c','d','e'].map(l=>{
-                let bg='#fff',bc='#E5E7EB',tx='#374151';
+                let bg='var(--card2)',bc=cardBdr,tx='var(--text)';
                 if(ans!==undefined){
                   if(l===q.ok)  {bg='#F0FDF4';bc='#16A34A';tx='#14532D';}
                   else if(l===ans){bg='#FEF2F2';bc='#EF4444';tx='#991B1B';}
-                  else{bg='#F9FAFB';bc='#E5E7EB';tx='#9CA3AF';}
+                  else{bg=dark?'var(--card2)':'#F9FAFB';bc=cardBdr;tx='var(--muted)';}
                 }
                 return (
                   <button key={l} onClick={()=>answer(l)} disabled={ans!==undefined}
@@ -7303,7 +7884,7 @@ function Simulados() {
             <div style={{marginBottom:12}}>
               {!disGab ? (
                 <div style={{textAlign:'center',paddingTop:4}}>
-                  <p style={{fontSize:13,color:'#6B7280',marginBottom:14}}>Elabore sua resposta e depois revele o gabarito.</p>
+                  <p style={{fontSize:13,color:'var(--sub)',marginBottom:14}}>Elabore sua resposta e depois revele o gabarito.</p>
                   <Btn v="primary" full={true} onClick={()=>setDisGab(true)}>✏️ Ver Gabarito</Btn>
                 </div>
               ) : (
@@ -7314,7 +7895,7 @@ function Simulados() {
                   </Card>
                   {ans===undefined && (
                     <>
-                      <p style={{fontSize:13,fontWeight:700,color:'#374151',textAlign:'center',margin:'0 0 10px'}}>Você acertou?</p>
+                      <p style={{fontSize:13,fontWeight:700,color:'var(--text)',textAlign:'center',margin:'0 0 10px'}}>Você acertou?</p>
                       <div style={{display:'flex',gap:10}}>
                         <button onClick={()=>answer('err')}
                           style={{flex:1,padding:'13px',borderRadius:14,border:'2px solid #EF4444',background:'#FEF2F2',color:'#991B1B',fontWeight:700,fontSize:15,cursor:'pointer'}}>
@@ -7341,21 +7922,21 @@ function Simulados() {
     const tot=qs.length, resp=Object.keys(resps).length;
     const ok=qs.filter((q,i)=>isCorrect(q,i)).length;
     const pct=resp?Math.round(ok/resp*100):0;
-    const nota=Math.round(500+(pct-50)*8);
+    const nota=Math.max(0,Math.min(1000,Math.round(500+(pct-50)*8)));
     const cor=nota>=750?'#16A34A':nota>=600?'#163A70':'#D97706';
     return (
-      <div style={{padding:'24px 16px 32px',minHeight:'100vh',background:'#f8fafc'}}>
+      <div style={{padding:'24px 16px 32px',minHeight:'100vh',background:'var(--bg)'}}>
         <Card className="text-center mb-4 fadeUp">
           <div style={{textAlign:'center'}}>
             <div style={{fontSize:52,marginBottom:12}}>{pct>=70?'🏆':pct>=50?'📊':'📚'}</div>
-            <h2 style={{color:'#163A70',fontSize:18,fontWeight:900,margin:'0 0 4px'}}>{tipo.title} — Resultado</h2>
+            <h2 style={{color:'var(--text)',fontSize:18,fontWeight:900,margin:'0 0 4px'}}>{tipo.title} — Resultado</h2>
             <p style={{color:cor,fontSize:48,fontWeight:900,margin:'16px 0 0'}}>{nota}</p>
-            <p style={{color:'#9CA3AF',fontSize:12,margin:'2px 0 16px'}}>pontos ENEM estimados</p>
+            <p style={{color:'var(--sub)',fontSize:12,margin:'2px 0 16px'}}>pontos ENEM estimados</p>
             <div style={{display:'flex',justifyContent:'center',gap:24}}>
               {[{l:'Acertos',v:ok,c:'#16A34A'},{l:'Erros',v:resp-ok,c:'#EF4444'},{l:'Aproveit.',v:pct+'%',c:'#163A70'}].map((s,i)=>(
                 <div key={i} style={{textAlign:'center'}}>
                   <p style={{fontSize:24,fontWeight:900,color:s.c,margin:0}}>{s.v}</p>
-                  <p style={{fontSize:12,color:'#9CA3AF',margin:0}}>{s.l}</p>
+                  <p style={{fontSize:12,color:'var(--sub)',margin:0}}>{s.l}</p>
                 </div>
               ))}
             </div>
@@ -7365,37 +7946,87 @@ function Simulados() {
           {qs.map((q,i)=>(
             <Card key={i} className="p-3" style={{padding:'10px 14px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:12,fontWeight:700,color:'#6B7280'}}>Q{i+1} — {q.disc} {q.tipo==='dissertativa'?'✏️':''}</span>
+                <span style={{fontSize:12,fontWeight:700,color:'var(--sub)'}}>Q{i+1} — {q.disc} {q.tipo==='dissertativa'?'✏️':''}</span>
                 <span>{isCorrect(q,i)?'✅':'❌'}</span>
               </div>
-              <p style={{fontSize:12,color:'#9CA3AF',margin:'4px 0 0'}} className="line2">{(q.enunciado||'').replace(/!\[[^\]]*\]\([^\)]+\)/g,'[imagem]').replace(/\*\*([^*]+)\*\*/g,'$1')}</p>
+              <p style={{fontSize:12,color:'var(--muted)',margin:'4px 0 0'}} className="line2">{(q.enunciado||'').replace(/!\[[^\]]*\]\([^\)]+\)/g,'[imagem]').replace(/\*\*([^*]+)\*\*/g,'$1')}</p>
             </Card>
           ))}
+        </div>
+        <div style={{display:'flex',gap:10,marginBottom:10}}>
+          <button onClick={()=>compartilhar(nota,ok,resp,pct)} style={{flex:1,padding:'12px 16px',borderRadius:14,fontWeight:700,fontSize:14,cursor:'pointer',background:'var(--card2)',color:'var(--text)',border:'1px solid '+cardBdr}}>📤 Compartilhar</button>
+          <button onClick={()=>setFase('history')} style={{flex:1,padding:'12px 16px',borderRadius:14,fontWeight:700,fontSize:14,cursor:'pointer',background:'var(--card2)',color:'var(--text)',border:'1px solid '+cardBdr}}>📚 Histórico</button>
         </div>
         <Btn v="gold" full={true} onClick={()=>setFase('menu')}>Novo Simulado</Btn>
       </div>
     );
   }
 
+  if(fase==='history') {
+    return (
+      <div style={{paddingBottom:88,minHeight:'100vh',background:'var(--bg)'}}>
+        <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px',display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>setFase('menu')} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:36,height:36,borderRadius:10,fontSize:18,cursor:'pointer'}}>←</button>
+          <div><h1 style={{fontSize:20,fontWeight:900,margin:0}}>Histórico de Simulados</h1>
+          <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'4px 0 0'}}>{simHist.length} simulados realizados</p></div>
+        </div>
+        <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
+          {simHist.length===0 && <Card style={{textAlign:'center'}}><p style={{color:'var(--sub)',margin:0}}>Você ainda não concluiu nenhum simulado.</p></Card>}
+          {simHist.length>0 && (()=>{
+            const media=Math.round(simHist.reduce((a,s)=>a+(s.nota||0),0)/simHist.length);
+            const melhor=Math.max(...simHist.map(s=>s.nota||0));
+            return <Card style={{display:'flex',justifyContent:'space-around',textAlign:'center'}}>
+              <div><p style={{fontSize:22,fontWeight:900,color:'#163A70',margin:0}}>{simHist.length}</p><p style={{fontSize:11,color:'var(--sub)',margin:0}}>Simulados</p></div>
+              <div><p style={{fontSize:22,fontWeight:900,color:'#0891B2',margin:0}}>{media}</p><p style={{fontSize:11,color:'var(--sub)',margin:0}}>Média</p></div>
+              <div><p style={{fontSize:22,fontWeight:900,color:'#16A34A',margin:0}}>{melhor}</p><p style={{fontSize:11,color:'var(--sub)',margin:0}}>Melhor</p></div>
+            </Card>;
+          })()}
+          {simHist.map((s,i)=>{
+            const c=s.nota>=750?'#16A34A':s.nota>=600?'#163A70':'#D97706';
+            const d=new Date(s.date);
+            return (
+              <Card key={i}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div>
+                    <p style={{fontWeight:700,color:'var(--text)',margin:'0 0 2px',fontSize:14}}>{s.tipo}</p>
+                    <p style={{fontSize:12,color:'var(--sub)',margin:0}}>{s.ok}/{s.tot} acertos • {s.pct}%</p>
+                    <p style={{fontSize:11,color:'var(--muted)',margin:'4px 0 0'}}>{d.toLocaleDateString('pt-BR')} {d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <p style={{fontSize:26,fontWeight:900,color:c,margin:0}}>{s.nota}</p>
+                    <p style={{fontSize:10,color:'var(--muted)',margin:0}}>pts ENEM</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{paddingBottom:88,minHeight:'100vh',background:'var(--bg)'}}>
-      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px'}}>
-        <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Simulados</h1>
-        <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'6px 0 0'}}>Escolha o tipo de questão e depois o simulado</p>
+      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div>
+          <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Simulados</h1>
+          <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'6px 0 0'}}>Escolha o tipo de questão e depois o simulado</p>
+        </div>
+        <button onClick={()=>setFase('history')} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',padding:'8px 12px',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📚 {simHist.length}</button>
       </div>
 
       {/* Seletor de tipo de questão */}
-      <div style={{background:'#fff',borderBottom:'1px solid #E5E7EB',padding:'16px 20px'}}>
-        <p style={{fontSize:12,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 10px'}}>Tipo de Questão</p>
+      <div style={{background:'var(--card)',borderBottom:'1px solid '+cardBdr,padding:'16px 20px'}}>
+        <p style={{fontSize:12,fontWeight:700,color:'var(--sub)',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 10px'}}>Tipo de Questão</p>
         <div style={{display:'flex',gap:8}}>
           {tipoQOpts.map(o=>{
             const sel=tipoQ===o.v;
             return (
               <button key={o.v} onClick={()=>setTipoQ(o.v)}
-                style={{flex:1,padding:'10px 6px',borderRadius:12,border:`2px solid ${sel?'#163A70':'#E5E7EB'}`,background:sel?'#163A70':'#F9FAFB',color:sel?'#fff':'#374151',cursor:'pointer',transition:'all .15s',textAlign:'center'}}>
+                style={{flex:1,padding:'10px 6px',borderRadius:12,border:'2px solid '+(sel?'#163A70':cardBdr),background:sel?'#163A70':'var(--card2)',color:sel?'#fff':'var(--text)',cursor:'pointer',transition:'all .15s',textAlign:'center'}}>
                 <div style={{fontSize:20,marginBottom:3}}>{o.icon}</div>
                 <div style={{fontSize:12,fontWeight:700}}>{o.label}</div>
-                <div style={{fontSize:10,color:sel?'rgba(255,255,255,.7)':'#9CA3AF',marginTop:1}}>{o.desc}</div>
+                <div style={{fontSize:10,color:sel?'rgba(255,255,255,.7)':'var(--muted)',marginTop:1}}>{o.desc}</div>
               </button>
             );
           })}
@@ -7405,13 +8036,13 @@ function Simulados() {
       <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
         {tipos.map(t=>(
           <button key={t.id} onClick={()=>iniciar(t)}
-            style={{background:'#fff',borderRadius:20,padding:20,border:'none',display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 1px 3px rgba(0,0,0,.08)',textAlign:'left',transition:'box-shadow .2s'}}
+            style={{background:'var(--card)',borderRadius:20,padding:20,border:'1px solid '+cardBdr,display:'flex',alignItems:'center',gap:16,cursor:'pointer',boxShadow:'0 1px 3px rgba(0,0,0,.08)',textAlign:'left',transition:'box-shadow .2s'}}
             onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'}
             onMouseLeave={e=>e.currentTarget.style.boxShadow='0 1px 3px rgba(0,0,0,.08)'}>
             <div style={{width:56,height:56,borderRadius:16,background:t.cor+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0}}>{t.icon}</div>
             <div style={{flex:1}}>
-              <p style={{fontWeight:700,color:'#163A70',fontSize:16,margin:'0 0 2px'}}>{t.title}</p>
-              <p style={{fontSize:13,color:'#9CA3AF',margin:'0 0 6px'}}>{t.desc}</p>
+              <p style={{fontWeight:700,color:'var(--text)',fontSize:16,margin:'0 0 2px'}}>{t.title}</p>
+              <p style={{fontSize:13,color:'var(--sub)',margin:'0 0 6px'}}>{t.desc}</p>
               <div style={{display:'flex',gap:6}}>
                 <Chip color="blue">{t.n} questões</Chip>
                 <Chip color="gray">{t.min} min</Chip>
@@ -7429,42 +8060,179 @@ function Simulados() {
 }
 
 /* ───────── REDAÇÃO ───────── */
-function Redacao() {
+/* Temas de redação — 30+ atuais (2026) organizados por categoria */
+const REDACAO_TEMAS = [
+  { cat:'🇧🇷 Prováveis ENEM 2026', temas:[
+    'Os impactos sociais da Copa do Mundo de 2026 no Brasil',
+    'Desafios para o combate à desinformação em ano eleitoral',
+    'Caminhos para valorizar o voto consciente nas eleições de 2026',
+    'O papel da inteligência artificial na educação brasileira',
+    'Desafios para a preservação da Amazônia frente às mudanças climáticas',
+    'A saúde mental da juventude na era digital',
+    'Combate à violência contra a mulher na sociedade brasileira',
+    'Desafios para a inclusão da pessoa com deficiência no mercado de trabalho',
+    'O enfrentamento ao etarismo (preconceito de idade) no Brasil',
+    'Caminhos para reduzir o desperdício de alimentos no país',
+  ]},
+  { cat:'🌍 Atualidades & Tecnologia', temas:[
+    'Os limites éticos do uso de inteligência artificial generativa',
+    'A regulamentação das redes sociais e a liberdade de expressão',
+    'Impactos da automação e da IA no futuro do trabalho',
+    'Privacidade de dados e proteção do cidadão na era digital',
+    'O combate às fake news e seus efeitos na democracia',
+    'A dependência tecnológica e o bem-estar das novas gerações',
+    'Desafios da transição energética para uma economia sustentável',
+    'O papel do agronegócio sustentável no desenvolvimento do Brasil',
+  ]},
+  { cat:'🧠 Sociedade & Saúde', temas:[
+    'A epidemia de ansiedade e depressão entre os jovens',
+    'Caminhos para democratizar o acesso à saúde pública (SUS)',
+    'O estigma em torno dos transtornos mentais no Brasil',
+    'A importância da educação financeira nas escolas',
+    'Desafios para a valorização do trabalho do professor',
+    'O combate ao racismo estrutural na sociedade brasileira',
+    'A luta contra a fome e a insegurança alimentar',
+    'Envelhecimento populacional e os desafios para a previdência',
+  ]},
+  { cat:'📋 Concursos & Vestibulares', temas:[
+    'Transparência pública e o combate à corrupção no serviço público',
+    'O papel do servidor público na eficiência do Estado',
+    'Mobilidade urbana e qualidade de vida nas grandes cidades',
+    'Segurança pública: prevenção versus repressão',
+    'A importância do saneamento básico para a saúde coletiva',
+    'Reforma tributária e justiça fiscal no Brasil',
+    'O federalismo brasileiro e a distribuição de recursos',
+    'Direitos humanos e cidadania no Estado Democrático de Direito',
+  ]},
+];
+const REDACAO_TODOS = REDACAO_TEMAS.reduce((a,g)=>a.concat(g.temas),[]);
+
+/* Avaliação heurística offline (fallback quando a IA não está disponível) */
+function avaliarHeuristico(texto, tema){
+  const t=texto.trim();
+  const words=t?t.split(/\s+/).length:0;
+  const paras=t.split(/\n\s*\n/).filter(p=>p.trim().length>30).length || t.split(/\n/).filter(p=>p.trim().length>30).length;
+  const low=t.toLowerCase();
+  const conectivos=['portanto','entretanto','contudo','todavia','além disso','ademais','dessa forma','desse modo','por conseguinte','logo','assim','porém','visto que','uma vez que','em virtude','conquanto','outrossim','por fim','em suma','sobretudo','nesse sentido','com efeito'];
+  const nConect=conectivos.filter(c=>low.includes(c)).length;
+  const interv=['governo','ministério','estado','poder público','escola','mídia','ong','sociedade civil','políticas públicas','campanhas','investir','criar','promover','por meio de','a fim de','com o intuito','medida','ação'];
+  const nInterv=interv.filter(c=>low.includes(c)).length;
+  const step=v=>Math.max(0,Math.min(200,Math.round(v/40)*40));
+  // C1 norma culta — proxy por tamanho adequado e variedade
+  let c1=words>=250?160:words>=180?120:words>=100?80:40;
+  // C2 compreensão do tema — tamanho + repertório
+  let c2=(words>=200?160:120)+(nConect>=3?0:-40);
+  // C3 organização — parágrafos + conectivos
+  let c3=(paras>=4?160:paras>=3?120:80)+(nConect>=5?0:-40);
+  // C4 coesão — conectivos
+  let c4=nConect>=6?200:nConect>=4?160:nConect>=2?120:80;
+  // C5 proposta de intervenção — palavras de intervenção no último parágrafo
+  let c5=nInterv>=5?160:nInterv>=3?120:nInterv>=1?80:40;
+  c1=step(c1);c2=step(c2);c3=step(c3);c4=step(c4);c5=step(c5);
+  const total=c1+c2+c3+c4+c5;
+  return {c1,c2,c3,c4,c5,total,words,
+    feedback:'Avaliação automática offline (a IA online não estava disponível). '+(total>=800?'Excelente estrutura! Mantenha a consistência argumentativa.':total>=600?'Bom texto. Reforce a proposta de intervenção com agente, ação, meio, finalidade e detalhamento.':'Trabalhe a estrutura em 4-5 parágrafos, use mais conectivos e detalhe a proposta de intervenção.'),
+    fortes:[words>=250?'Extensão adequada':'Desenvolva mais o texto', nConect>=4?'Bom uso de conectivos':'Use mais elementos coesivos'],
+    melhorar:[c5<160?'Detalhe a proposta de intervenção (quem, o quê, como, para quê)':'Refine o repertório sociocultural', c3<160?'Organize melhor os parágrafos':'Enriqueça a argumentação'],
+    offline:true };
+}
+
+function Redacao({ go, auth }) {
+  const {dark}=useThemeCtx();
   const [titulo,setTitulo]=useState('');
   const [tema,setTema]=useState('');
   const [texto,setTexto]=useState('');
   const [fase,setFase]=useState('write');
   const [res,setRes]=useState(null);
+  const [erro,setErro]=useState('');
+  const [hist,setHist]=useState(()=>_getRedacoes());
+  const cardBdr=dark?'#233':'#E5E7EB';
 
-  const temas = [
-    'Desafios da educação pública no Brasil',
-    'O papel das redes sociais na democracia',
-    'Sustentabilidade e desenvolvimento econômico',
-    'Saúde mental na sociedade contemporânea',
-    'Desigualdade social no Brasil',
-    'O impacto da inteligência artificial no trabalho',
-  ];
-
-  const avaliar = () => {
+  const avaliar = async () => {
     const words = texto.trim().split(/\s+/).length;
     if(!tema || words<20) return;
+    setErro('');
     setFase('loading');
-    setTimeout(()=>{
-      const c1=120+Math.floor(Math.random()*80);
-      const c2=100+Math.floor(Math.random()*100);
-      const c3=100+Math.floor(Math.random()*100);
-      const c4=80+Math.floor(Math.random()*120);
-      const c5=Math.min(200,60+Math.floor(words/2));
-      setRes({c1,c2,c3,c4,c5,total:c1+c2+c3+c4+c5,words});
-      setFase('result');
-    },2500);
+    let out=null;
+    // 1) IA real via proxy (chave escondida no servidor)
+    if(IA_PROXY_URL){
+      try{
+        const sys='Você é um corretor oficial de redações do ENEM. Avalie a redação dissertativo-argumentativa segundo as 5 competências, cada uma de 0 a 200 pontos, usando SOMENTE os valores 0, 40, 80, 120, 160 ou 200. Competências: C1=domínio da norma culta; C2=compreensão do tema e estrutura dissertativo-argumentativa; C3=seleção e organização de argumentos; C4=coesão e mecanismos linguísticos; C5=proposta de intervenção que respeite os direitos humanos. Responda ESTRITAMENTE em JSON válido, sem markdown, no formato: {"c1":0,"c2":0,"c3":0,"c4":0,"c5":0,"feedback":"parágrafo geral","fortes":["ponto forte 1","ponto forte 2"],"melhorar":["sugestão 1","sugestão 2"]}';
+        const userMsg='TEMA: '+tema+'\n\nREDAÇÃO:\n'+texto.trim();
+        const contents=[{role:'user',parts:[{text:userMsg}]}];
+        const r=await fetch(IA_PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:sys,contents})});
+        const data=await r.json().catch(()=>({}));
+        if(!r.ok) throw new Error('proxy '+r.status);
+        const cand=data.candidates&&data.candidates[0];
+        let txt=data.text||(cand&&cand.content&&cand.content.parts?cand.content.parts.map(p=>p.text||'').join(''):'');
+        const a=txt.indexOf('{'), b=txt.lastIndexOf('}');
+        if(a>=0&&b>a){
+          const j=JSON.parse(txt.slice(a,b+1));
+          const clamp=v=>{v=Math.round((+v||0)/40)*40;return Math.max(0,Math.min(200,v));};
+          const c1=clamp(j.c1),c2=clamp(j.c2),c3=clamp(j.c3),c4=clamp(j.c4),c5=clamp(j.c5);
+          out={c1,c2,c3,c4,c5,total:c1+c2+c3+c4+c5,words,
+               feedback:j.feedback||'',fortes:j.fortes||[],melhorar:j.melhorar||[],offline:false};
+        }
+      }catch(e){ /* cai no heurístico */ }
+    }
+    // 2) Fallback offline
+    if(!out) out=avaliarHeuristico(texto,tema);
+    setRes(out);
+    // salvar histórico + XP
+    try{ _addRedacao({titulo:titulo||tema.slice(0,40),tema,words,total:out.total,c:[out.c1,out.c2,out.c3,out.c4,out.c5]}); setHist(_getRedacoes()); }catch(e){}
+    if(auth&&auth.addXP) auth.addXP(Math.max(5,Math.round(out.total/50)));
+    setFase('result');
+  };
+
+  const compartilhar = async (r) => {
+    const txt='📝 Minha redação no Aprova IA: '+r.total+'/1000!\nTema: '+tema+'\nC1:'+r.c1+' C2:'+r.c2+' C3:'+r.c3+' C4:'+r.c4+' C5:'+r.c5;
+    try{ if(navigator.share){ await navigator.share({title:'Aprova IA — Redação',text:txt}); return; } }catch(e){ return; }
+    try{ await navigator.clipboard.writeText(txt); alert('Resultado copiado para a área de transferência!'); }catch(e){ alert(txt); }
   };
 
   if(fase==='loading') return (
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,background:'#f8fafc'}}>
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,background:'var(--bg)'}}>
       <div className="spin" style={{width:56,height:56,border:'4px solid #163A70',borderTopColor:'transparent',borderRadius:'50%'}}/>
-      <p style={{color:'#163A70',fontWeight:700,fontSize:16}}>A IA está avaliando sua redação...</p>
-      <p style={{color:'#9CA3AF',fontSize:14}}>Analisando as 5 competências ENEM</p>
+      <p style={{color:'var(--text)',fontWeight:700,fontSize:16}}>A IA está avaliando sua redação...</p>
+      <p style={{color:'var(--sub)',fontSize:14}}>Analisando as 5 competências ENEM</p>
+    </div>
+  );
+
+  if(fase==='history') return (
+    <div style={{paddingBottom:88,minHeight:'100vh',background:'var(--bg)'}}>
+      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px',display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>setFase('write')} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',width:36,height:36,borderRadius:10,fontSize:18,cursor:'pointer'}}>←</button>
+        <div><h1 style={{fontSize:20,fontWeight:900,margin:0}}>Histórico de Redações</h1>
+        <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'4px 0 0'}}>{hist.length} redações avaliadas</p></div>
+      </div>
+      <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
+        {hist.length===0 && <Card style={{textAlign:'center'}}><p style={{color:'var(--sub)',margin:0}}>Você ainda não avaliou nenhuma redação.</p></Card>}
+        {hist.map((h,i)=>{
+          const cor=h.total>=800?'#16A34A':h.total>=600?'#163A70':h.total>=400?'#D97706':'#EF4444';
+          const d=new Date(h.date);
+          return (
+            <Card key={i}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontWeight:700,color:'var(--text)',margin:'0 0 4px',fontSize:14}}>{h.titulo}</p>
+                  <p style={{fontSize:12,color:'var(--sub)',margin:0}}>{h.tema}</p>
+                  <p style={{fontSize:11,color:'var(--muted)',margin:'6px 0 0'}}>{d.toLocaleDateString('pt-BR')} • {h.words} palavras</p>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <p style={{fontSize:26,fontWeight:900,color:cor,margin:0}}>{h.total}</p>
+                  <p style={{fontSize:10,color:'var(--muted)',margin:0}}>/1000</p>
+                </div>
+              </div>
+              {h.c && <div style={{display:'flex',gap:4,marginTop:10}}>
+                {h.c.map((v,j)=><div key={j} style={{flex:1,textAlign:'center',background:'var(--card2)',borderRadius:8,padding:'4px 0'}}>
+                  <div style={{fontSize:9,color:'var(--muted)'}}>C{j+1}</div>
+                  <div style={{fontSize:12,fontWeight:700,color:'var(--text)'}}>{v}</div>
+                </div>)}
+              </div>}
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -7479,31 +8247,41 @@ function Redacao() {
     const cor=res.total>=800?'#16A34A':res.total>=600?'#163A70':res.total>=400?'#D97706':'#EF4444';
     const label=res.total>=800?'Excelente':res.total>=600?'Bom':res.total>=400?'Regular':'A desenvolver';
     return (
-      <div style={{padding:'24px 16px 32px',minHeight:'100vh',background:'#f8fafc'}}>
+      <div style={{padding:'24px 16px 32px',minHeight:'100vh',background:'var(--bg)'}}>
         <Card className="text-center mb-4 fadeUp" style={{textAlign:'center'}}>
-          <p style={{fontSize:12,color:'#9CA3AF',margin:'0 0 4px'}}>Nota Final</p>
+          <p style={{fontSize:12,color:'var(--sub)',margin:'0 0 4px'}}>Nota Final</p>
           <p style={{fontSize:56,fontWeight:900,color:cor,margin:0}}>{res.total}</p>
           <p style={{fontSize:14,fontWeight:700,color:cor,margin:'2px 0 4px'}}>{label}</p>
-          <p style={{fontSize:12,color:'#9CA3AF',margin:0}}>{res.words} palavras</p>
+          <p style={{fontSize:12,color:'var(--sub)',margin:0}}>{res.words} palavras{res.offline?' • avaliação offline':''}</p>
         </Card>
         <Card className="mb-4">
-          <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 16px'}}>Desempenho por Competência</h3>
+          <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 16px'}}>Desempenho por Competência</h3>
           {comps.map(c=>(
             <div key={c.n} style={{marginBottom:14}}>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
-                <span style={{fontWeight:600,color:'#374151'}}><span style={{color:'#163A70',fontWeight:700}}>{c.n}</span> — {c.l}</span>
-                <span style={{fontWeight:700,color:'#163A70'}}>{c.v}/200</span>
+                <span style={{fontWeight:600,color:'var(--text)'}}><span style={{color:'#163A70',fontWeight:700}}>{c.n}</span> — {c.l}</span>
+                <span style={{fontWeight:700,color:'var(--text)'}}>{c.v}/200</span>
               </div>
               <Progress val={(c.v/200)*100} color={c.v>=160?'#16A34A':c.v>=100?'#163A70':'#D97706'}/>
             </div>
           ))}
         </Card>
-        <Card className="mb-4" style={{background:'#EFF6FF',border:'1px solid #BFDBFE'}}>
-          <h3 style={{fontWeight:700,color:'#163A70',margin:'0 0 8px'}}>💡 Feedback da IA</h3>
-          <p style={{fontSize:13,color:'#374151',lineHeight:1.6,margin:0}}>
-            {res.total>=800?'Parabéns! Redação com excelente domínio da norma culta e organização argumentativa. Continue praticando para manter esse nível.':res.total>=600?'Boa redação! Foque em enriquecer sua proposta de intervenção com agente, ação, meio e finalidade.':'Continue praticando! Trabalhe na estrutura dos parágrafos e revise as competências com menor pontuação.'}
-          </p>
+        <Card className="mb-4" style={{background:dark?'var(--card2)':'#EFF6FF',border:'1px solid '+(dark?'#233':'#BFDBFE')}}>
+          <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 8px'}}>💡 Feedback da IA</h3>
+          <p style={{fontSize:13,color:'var(--text)',lineHeight:1.6,margin:0}}>{res.feedback||'Continue praticando!'}</p>
+          {res.fortes&&res.fortes.length>0 && <div style={{marginTop:12}}>
+            <p style={{fontSize:12,fontWeight:700,color:'#16A34A',margin:'0 0 4px'}}>✅ Pontos fortes</p>
+            {res.fortes.map((f,i)=><p key={i} style={{fontSize:12,color:'var(--sub)',margin:'2px 0'}}>• {f}</p>)}
+          </div>}
+          {res.melhorar&&res.melhorar.length>0 && <div style={{marginTop:10}}>
+            <p style={{fontSize:12,fontWeight:700,color:'#D97706',margin:'0 0 4px'}}>🎯 A melhorar</p>
+            {res.melhorar.map((f,i)=><p key={i} style={{fontSize:12,color:'var(--sub)',margin:'2px 0'}}>• {f}</p>)}
+          </div>}
         </Card>
+        <div style={{display:'flex',gap:10,marginBottom:10}}>
+          <button onClick={()=>compartilhar(res)} style={{flex:1,padding:'12px 16px',borderRadius:14,fontWeight:700,fontSize:14,cursor:'pointer',background:'var(--card2)',color:'var(--text)',border:'1px solid '+(dark?'#233':'#E5E7EB')}}>📤 Compartilhar</button>
+          <button onClick={()=>setFase('history')} style={{flex:1,padding:'12px 16px',borderRadius:14,fontWeight:700,fontSize:14,cursor:'pointer',background:'var(--card2)',color:'var(--text)',border:'1px solid '+(dark?'#233':'#E5E7EB')}}>📚 Histórico</button>
+        </div>
         <Btn v="gold" full={true} onClick={()=>{setFase('write');setTexto('');setTema('');setTitulo('');setRes(null);}}>Nova redação</Btn>
       </div>
     );
@@ -7514,37 +8292,46 @@ function Redacao() {
 
   return (
     <div style={{paddingBottom:88,minHeight:'100vh',background:'var(--bg)'}}>
-      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px'}}>
-        <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Redação</h1>
-        <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'6px 0 0'}}>Avaliação com IA — modelo ENEM</p>
+      <div style={{background:'#163A70',color:'#fff',padding:'40px 20px 24px',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div>
+          <h1 style={{fontSize:20,fontWeight:900,margin:0}}>Redação</h1>
+          <p style={{fontSize:13,color:'rgba(255,255,255,.65)',margin:'6px 0 0'}}>Avaliação com IA — modelo ENEM</p>
+        </div>
+        <button onClick={()=>setFase('history')} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',padding:'8px 12px',borderRadius:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📚 {hist.length}</button>
       </div>
       <div style={{padding:'16px',display:'flex',flexDirection:'column',gap:12}}>
         <Card>
           <FInput label="Título (opcional)" placeholder="Título da sua redação" value={titulo} onChange={e=>setTitulo(e.target.value)}/>
         </Card>
         <Card>
-          <p style={{fontSize:12,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 10px'}}>Tema da Redação *</p>
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:10}}>
-            {temas.map(t=>(
-              <button key={t} onClick={()=>setTema(t)}
-                style={{textAlign:'left',padding:'10px 14px',borderRadius:12,border:`2px solid ${tema===t?'#163A70':'#E5E7EB'}`,background:tema===t?'#163A70':'#fff',color:tema===t?'#fff':'#374151',fontSize:13,cursor:'pointer',transition:'all .2s'}}>
-                {t}
-              </button>
-            ))}
-          </div>
-          <input style={{width:'100%',border:'1px solid #E5E7EB',borderRadius:12,padding:'10px 14px',fontSize:13}} placeholder="Ou escreva um tema personalizado..." value={temas.includes(tema)?'':tema} onChange={e=>setTema(e.target.value)}/>
+          <p style={{fontSize:12,fontWeight:700,color:'var(--sub)',textTransform:'uppercase',letterSpacing:'.05em',margin:'0 0 10px'}}>Tema da Redação * <span style={{color:'var(--muted)',fontWeight:600,textTransform:'none'}}>({REDACAO_TODOS.length} temas)</span></p>
+          {REDACAO_TEMAS.map(g=>(
+            <div key={g.cat} style={{marginBottom:12}}>
+              <p style={{fontSize:11,fontWeight:800,color:'var(--text)',margin:'0 0 6px'}}>{g.cat}</p>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {g.temas.map(t=>(
+                  <button key={t} onClick={()=>setTema(t)}
+                    style={{textAlign:'left',padding:'10px 14px',borderRadius:12,border:'2px solid '+(tema===t?'#163A70':cardBdr),background:tema===t?'#163A70':'var(--card2)',color:tema===t?'#fff':'var(--text)',fontSize:13,cursor:'pointer',transition:'all .2s'}}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <input style={{width:'100%',border:'1px solid '+cardBdr,borderRadius:12,padding:'10px 14px',fontSize:13,background:'var(--inp-bg)',color:'var(--text)'}} placeholder="Ou escreva um tema personalizado..." value={REDACAO_TODOS.includes(tema)?'':tema} onChange={e=>setTema(e.target.value)}/>
         </Card>
         <Card>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-            <p style={{fontSize:12,fontWeight:700,color:'#6B7280',textTransform:'uppercase',letterSpacing:'.05em',margin:0}}>Texto *</p>
+            <p style={{fontSize:12,fontWeight:700,color:'var(--sub)',textTransform:'uppercase',letterSpacing:'.05em',margin:0}}>Texto *</p>
             <span style={{fontSize:12,fontWeight:700,color:words<20?'#EF4444':words>=200?'#16A34A':'#D97706'}}>{words} palavras</span>
           </div>
           <textarea rows={14} placeholder="Escreva sua redação aqui. Lembre-se: introdução, desenvolvimento (2 parágrafos) e conclusão com proposta de intervenção detalhada..." value={texto} onChange={e=>setTexto(e.target.value)}
-            style={{width:'100%',border:'1px solid #E5E7EB',borderRadius:12,padding:'12px 14px',fontSize:14,lineHeight:1.7,resize:'none',fontFamily:'inherit'}}/>
-          <p style={{fontSize:11,color:'#9CA3AF',margin:'6px 0 0'}}>{texto.length} caracteres • Ideal: 250–400 palavras</p>
+            style={{width:'100%',border:'1px solid '+cardBdr,borderRadius:12,padding:'12px 14px',fontSize:14,lineHeight:1.7,resize:'none',fontFamily:'inherit',background:'var(--inp-bg)',color:'var(--text)'}}/>
+          <p style={{fontSize:11,color:'var(--muted)',margin:'6px 0 0'}}>{texto.length} caracteres • Ideal: 250–400 palavras</p>
         </Card>
+        {erro && <p style={{textAlign:'center',fontSize:12,color:'#EF4444'}}>{erro}</p>}
         <Btn v="gold" full={true} onClick={avaliar} disabled={!canSend}>✨ Avaliar com IA</Btn>
-        {!canSend && <p style={{textAlign:'center',fontSize:12,color:'#9CA3AF'}}>Escolha um tema e escreva ao menos 20 palavras.</p>}
+        {!canSend && <p style={{textAlign:'center',fontSize:12,color:'var(--muted)'}}>Escolha um tema e escreva ao menos 20 palavras.</p>}
       </div>
     </div>
   );
@@ -7553,8 +8340,35 @@ function Redacao() {
 /* ───────── EVOLUÇÃO ───────── */
 function Evolucao({ auth }) {
   const {stats} = useStudyStats();
+  const {dark} = useThemeCtx();
   const u = auth?.user||{};
   const lv = getLevel(u.xp||0);
+
+  // Série temporal (últimos 14 dias com registro) — evolução da taxa de acerto
+  const daily=_getDaily();
+  const dias=Object.keys(daily).sort().slice(-14);
+  const serie=dias.map(d=>{
+    const o=daily[d]||{tot:0,ok:0};
+    return {d, acc:o.tot?Math.round((o.ok/o.tot)*100):0, tot:o.tot};
+  });
+
+  // Ranking / Leaderboard — colegas de demonstração + você (ordenado por XP)
+  const meuXP=u.xp||0;
+  const bots=[
+    {name:'Ana Clara',xp:8200},{name:'Pedro H.',xp:5400},{name:'Mariana S.',xp:3100},
+    {name:'Lucas M.',xp:1850},{name:'Beatriz R.',xp:920},{name:'Gabriel A.',xp:430},
+    {name:'Rafael T.',xp:160},{name:'Juliana P.',xp:60},
+  ];
+  const ranking=[...bots,{name:(u.name||'Você'),xp:meuXP,me:true}]
+    .sort((a,b)=>b.xp-a.xp)
+    .map((r,i)=>({...r,pos:i+1}));
+
+  const compartilhar = async () => {
+    const taxaLocal=stats.tot?Math.round((stats.ok/stats.tot)*100):0;
+    const txt='📈 Minha evolução no Aprova IA!\n'+lv.icon+' Patente: '+lv.name+' • '+meuXP+' XP\n🎯 '+taxaLocal+'% de acertos em '+stats.tot+' questões\n🔥 '+(stats.streak||0)+' dias seguidos de estudo';
+    try{ if(navigator.share){ await navigator.share({title:'Aprova IA — Minha evolução',text:txt}); return; } }catch(e){ return; }
+    try{ await navigator.clipboard.writeText(txt); alert('Progresso copiado!'); }catch(e){ alert(txt); }
+  };
 
   // Atividade semanal: últimos 7 dias
   const DAYS=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -7581,7 +8395,8 @@ function Evolucao({ auth }) {
     if(a.title==='Perfeito')           ok=taxa===100&&stats.tot>=5;
     if(a.title==='Sequência 3 dias')   ok=(stats.streak||0)>=3;
     if(a.title==='Sequência 7 dias')   ok=(stats.streak||0)>=7;
-    if(a.title==='Mestre')             ok=(u.xp||0)>=1500;
+    if(a.title==='Mestre')             ok=(u.xp||0)>=XP_MESTRE;
+    if(a.title==='Lenda')              ok=(u.xp||0)>=XP_LENDA;
     if(a.title==='Dedicado')           ok=(stats.streak||0)>=14;
     if(a.title==='Sequência 30 dias')  ok=(stats.streak||0)>=30;
     if(a.title==='Polímata')           ok=discCount>=5;
@@ -7605,6 +8420,9 @@ function Evolucao({ auth }) {
           <div style={{background:'rgba(255,255,255,.2)',borderRadius:99,height:8}}>
             <div className="xpbar" style={{width:`${lv.pct}%`,minWidth:4}}/>
           </div>
+          <p style={{fontSize:10,color:'rgba(255,255,255,.55)',margin:'6px 0 0',textAlign:'right'}}>
+            {lv.next ? `faltam ${Math.max(0,lv.next.min-(u.xp||0))} XP para ${lv.next.icon} ${lv.next.name}` : 'Patente máxima alcançada! 🏆'}
+          </p>
         </div>
       </div>
 
@@ -7649,6 +8467,63 @@ function Evolucao({ auth }) {
                   </div>
                 ))}
               </div>
+            </Card>
+
+            {/* Gráfico de evolução temporal (taxa de acerto ao longo dos dias) */}
+            <Card>
+              <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 4px'}}>📈 Evolução ao longo do tempo</h3>
+              <p style={{fontSize:11,color:'var(--muted)',margin:'0 0 14px'}}>Taxa de acerto acumulada por dia de estudo</p>
+              {serie.length<2 ? (
+                <p style={{fontSize:13,color:'var(--sub)',margin:'8px 0',textAlign:'center'}}>Estude em dias diferentes para ver sua curva de evolução aparecer aqui. 📊</p>
+              ) : (()=>{
+                const W=300,H=110,pad=6;
+                const n=serie.length;
+                const xs=i=>pad+(i*(W-2*pad)/(n-1));
+                const ys=v=>H-pad-(v/100)*(H-2*pad);
+                const pts=serie.map((s,i)=>`${xs(i)},${ys(s.acc)}`).join(' ');
+                const primeira=serie[0].acc, ultima=serie[n-1].acc, delta=ultima-primeira;
+                return (
+                  <>
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:120,overflow:'visible'}}>
+                      {[0,25,50,75,100].map(g=>(
+                        <line key={g} x1={pad} x2={W-pad} y1={ys(g)} y2={ys(g)} stroke={dark?'#233':'#EEF2F7'} strokeWidth="1"/>
+                      ))}
+                      <polyline points={pts} fill="none" stroke="#38BDF8" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+                      {serie.map((s,i)=>(
+                        <circle key={i} cx={xs(i)} cy={ys(s.acc)} r="3.5" fill="#163A70" stroke="#fff" strokeWidth="1.5"/>
+                      ))}
+                    </svg>
+                    <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+                      <span style={{fontSize:11,color:'var(--muted)'}}>{serie[0].d.slice(5)}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:delta>=0?'#16A34A':'#EF4444'}}>{delta>=0?'▲ +':'▼ '}{Math.abs(delta)}% no período</span>
+                      <span style={{fontSize:11,color:'var(--muted)'}}>{serie[n-1].d.slice(5)}</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </Card>
+
+            {/* Ranking / Leaderboard */}
+            <Card>
+              <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 4px'}}>🏅 Ranking</h3>
+              <p style={{fontSize:11,color:'var(--muted)',margin:'0 0 12px'}}>Sua posição entre os estudantes (por XP)</p>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {ranking.map((r)=>{
+                  const rlv=getLevel(r.xp);
+                  const medal=r.pos===1?'🥇':r.pos===2?'🥈':r.pos===3?'🥉':null;
+                  return (
+                    <div key={r.name+r.pos} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:12,
+                      background:r.me?(dark?'rgba(56,189,248,.14)':'#EFF6FF'):'var(--card2)',
+                      border:r.me?'1.5px solid #38BDF8':'1px solid '+(dark?'#233':'#EEF2F7')}}>
+                      <span style={{width:26,textAlign:'center',fontWeight:800,fontSize:medal?16:13,color:'var(--sub)'}}>{medal||r.pos}</span>
+                      <span style={{fontSize:16}}>{rlv.icon}</span>
+                      <span style={{flex:1,fontSize:13,fontWeight:r.me?800:600,color:r.me?'#0284C7':'var(--text)'}}>{r.name}{r.me?' (você)':''}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:'var(--sub)'}}>{r.xp} XP</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <button onClick={compartilhar} style={{marginTop:12,width:'100%',padding:'11px',borderRadius:12,fontWeight:700,fontSize:13,cursor:'pointer',background:'var(--card2)',color:'var(--text)',border:'1px solid '+(dark?'#233':'#E5E7EB')}}>📤 Compartilhar minha evolução</button>
             </Card>
 
             {/* Por disciplina */}
@@ -7703,6 +8578,27 @@ function Perfil({ go, auth }) {
   const [expandedDia,setExpandedDia]=useState(0);
   const {toggle,dark} = useThemeCtx();
   const photoRef = useRef(null);
+
+  /* ── notificações de streak ── */
+  const [notifOn,setNotifOn]=useState(()=>_notifOn());
+  const [notifPerm,setNotifPerm]=useState(()=>_notifSupported()?Notification.permission:'unsupported');
+  const toggleNotif = async () => {
+    if(notifOn){                      // desligar
+      _notifSet(false); setNotifOn(false);
+      try{ if(_notifTimer){clearTimeout(_notifTimer);_notifTimer=null;} }catch(e){}
+      return;
+    }
+    const perm=await _requestNotifPerm();   // ligar → pedir permissão
+    setNotifPerm(perm);
+    if(perm==='granted'){
+      _notifSet(true); setNotifOn(true); _scheduleStreakNotif();
+      try{ new Notification('Notificações ativadas! 🔔',{body:'Vamos te lembrar de manter sua sequência de estudos.',icon:APP_ICON}); }catch(e){}
+    }else if(perm==='denied'){
+      alert('As notificações estão bloqueadas no navegador. Para ativar, permita notificações para este site nas configurações do navegador.');
+    }else if(perm==='unsupported'){
+      alert('Seu navegador não suporta notificações.');
+    }
+  };
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
@@ -7991,6 +8887,35 @@ function Perfil({ go, auth }) {
           </div>
         </Card>
 
+        {/* Notificações de streak */}
+        <Card className="mb-3">
+          <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 14px',fontSize:15}}>🔔 Notificações</h3>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:14,fontWeight:600,color:'var(--text)',margin:0}}>🔥 Lembrete de sequência</p>
+              <p style={{fontSize:12,color:'var(--sub)',margin:'2px 0 0'}}>
+                {notifPerm==='unsupported'
+                  ? 'Seu navegador não suporta notificações.'
+                  : notifPerm==='denied'
+                    ? 'Bloqueado no navegador — libere nas configurações do site.'
+                    : 'Receba um lembrete diário para não perder sua streak de estudos.'}
+              </p>
+            </div>
+            <button onClick={toggleNotif} disabled={notifPerm==='unsupported'} style={{
+              width:52,height:28,borderRadius:99,border:'none',
+              cursor:notifPerm==='unsupported'?'not-allowed':'pointer',padding:2,
+              opacity:notifPerm==='unsupported'?.4:1,
+              background:notifOn?'#F59E0B':'#E5E7EB',transition:'background .25s',position:'relative',flexShrink:0
+            }}>
+              <div style={{
+                width:22,height:22,borderRadius:'50%',background:'#fff',
+                transform:notifOn?'translateX(24px)':'translateX(0)',
+                transition:'transform .25s',boxShadow:'0 1px 4px rgba(0,0,0,.25)'
+              }}/>
+            </button>
+          </div>
+        </Card>
+
         {/* Dados de estudo */}
         <Card className="mb-3">
           <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 12px',fontSize:15}}>📚 Informações de estudo</h3>
@@ -8148,7 +9073,7 @@ function Admin({ go, auth }) {
         {tab==='stats' && (
           <>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-              {[{i:'📝',l:'Questões',v:qs.length},{i:'👥',l:'Alunos',v:1247},{i:'✅',l:'Respostas',v:'48.923'}].map((s,i)=>(
+              {[{i:'📝',l:'Questões',v:qs.length},{i:'📚',l:'Disciplinas',v:Object.keys(byDisc).length},{i:'✏️',l:'Dissertativas',v:qs.filter(q=>q.tipo==='dissertativa').length},{i:'✅',l:'Objetivas',v:qs.filter(q=>q.tipo!=='dissertativa').length}].map((s,i)=>(
                 <Card key={i} style={{padding:'14px 16px'}}>
                   <p style={{fontSize:22,margin:'0 0 4px'}}>{s.i}</p>
                   <p style={{fontSize:22,fontWeight:900,color:'#163A70',margin:0}}>{s.v}</p>
@@ -8927,6 +9852,9 @@ function App() {
     if(!PUBLIC.includes(page) && !auth.user) go('login');
   },[page, auth.user]);
 
+  // Reativa o lembrete de streak ao abrir o app (se o usuário já optou por receber)
+  useEffect(()=>{ try{ if(_notifOn()) _scheduleStreakNotif(); }catch(e){} },[]);
+
   const showNav = !!auth.user && !PUBLIC.includes(page) && page!=='onboarding' && page!=='admin';
 
   const render = () => {
@@ -8937,9 +9865,9 @@ function App() {
       case 'forgot-password': return <ForgotPass go={go}/>;
       case 'onboarding':      return auth.user ? <Onboarding go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'questoes':        return auth.user ? <Questoes go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'simulados':       return auth.user ? <Simulados go={go}/> : <Login go={go} auth={auth}/>;
+      case 'simulados':       return auth.user ? <Simulados go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'mentor':          return auth.user ? <IAMentor auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'redacao':         return auth.user ? <Redacao go={go}/> : <Login go={go} auth={auth}/>;
+      case 'redacao':         return auth.user ? <Redacao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'evolucao':        return auth.user ? <Evolucao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'admin':           return auth.user ? <Admin go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
@@ -8959,6 +9887,16 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App/>);
+</script>
+<!-- ═══ Registro do Service Worker (PWA: instalável + offline) ═══ -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function (e) {
+        console.warn('SW registration failed:', e);
+      });
+    });
+  }
 </script>
 </body>
 </html>

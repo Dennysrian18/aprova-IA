@@ -1,0 +1,29 @@
+{
+  "name": "Aprova IA — Estudos para ENEM e Concursos",
+  "short_name": "Aprova IA",
+  "description": "Estude para o ENEM, vestibulares e concursos com questões, simulados, redação corrigida por IA e um mentor inteligente. Gamificado, com XP, patentes e sequências de estudo.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#040C1A",
+  "theme_color": "#163A70",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
