@@ -10,7 +10,7 @@
      injetado. 'unsafe-eval'/'unsafe-inline' são necessários porque o app usa
      Babel Standalone (transpila JSX no navegador). object-src 'none' e
      base-uri 'self' bloqueiam vetores clássicos de injeção. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mentor-ia.dennysrian18.workers.dev https://generativelanguage.googleapis.com https://unpkg.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mentor-ia.dennysrian18.workers.dev https://generativelanguage.googleapis.com https://unpkg.com https://cdn.jsdelivr.net https://*.supabase.co wss://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests"/>
 <meta name="referrer" content="no-referrer"/>
 <title>Aprova IA</title>
 <meta name="description" content="Estude para o ENEM, vestibulares e concursos: questões, simulados, redação corrigida por IA e mentor inteligente. Gamificado com XP e patentes."/>
@@ -115,6 +115,55 @@ const IA_PROXY_URL   = 'https://mentor-ia.dennysrian18.workers.dev';
    do index.html — funciona em subpasta (GitHub Pages /aprova-IA/). */
 const APP_ICON = 'icon.svg';
 
+/* ══════════════════════ BACK-END REAL (SUPABASE) ══════════════════════
+   Login e admin DE VERDADE (validados no servidor), opcionais. Enquanto
+   estes dois valores ficarem em branco, o app funciona 100% como antes
+   (login local no navegador). Assim que você criar o projeto no Supabase
+   e colar a URL + a chave ANÔNIMA (public anon key) abaixo, o app passa a:
+     • criar/entrar em contas reais (email+senha e "Continuar com Google");
+     • guardar XP/sequência/perfil na nuvem (sincroniza entre aparelhos);
+     • liberar o painel de ADMIN só para quem tem is_admin=true no banco
+       (essa marca NÃO pode ser forjada pelo navegador — é o servidor que
+       decide, via RLS). A chave ANÔNIMA é PÚBLICA por design — pode ficar
+       no código; quem protege os dados são as políticas RLS do Supabase.
+   ⚠️ NUNCA cole aqui a "service_role key" (essa é secreta). Só a anon key.
+   Passo a passo de configuração: veja SUPABASE_SETUP.sql neste repositório. */
+const SUPABASE_URL      = '';   // ex.: 'https://abcdefgh.supabase.co'
+const SUPABASE_ANON_KEY = '';   // ex.: 'eyJhbGciOi...'  (public anon key)
+const SUPA_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY
+  && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(SUPABASE_URL));
+
+/* Carrega o SDK do Supabase sob demanda (só quando configurado), com SRI. */
+let _supaClient = null, _supaLoading = null;
+function loadSupabase(){
+  if(_supaClient) return Promise.resolve(_supaClient);
+  if(_supaLoading) return _supaLoading;
+  _supaLoading = new Promise((resolve, reject)=>{
+    const mk = ()=>{ try{ _supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}}); resolve(_supaClient); }catch(e){ reject(e); } };
+    if(window.supabase && window.supabase.createClient) return mk();
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js';
+    s.integrity='sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug';
+    s.crossOrigin='anonymous';
+    s.onload=mk;
+    s.onerror=()=>reject(new Error('Falha ao carregar o SDK do Supabase.'));
+    document.head.appendChild(s);
+  });
+  return _supaLoading;
+}
+
+/* Traduz mensagens de erro comuns do Supabase para PT-BR amigável. */
+function traduzErroSupa(msg){
+  const m=(msg||'').toLowerCase();
+  if(m.includes('invalid login')||m.includes('invalid credentials')) return 'Email ou senha incorretos.';
+  if(m.includes('already registered')||m.includes('already exists')||m.includes('user already')) return 'Este email já tem conta. Faça login.';
+  if(m.includes('email not confirmed')) return 'Confirme seu email antes de entrar (veja sua caixa de entrada).';
+  if(m.includes('password should be')||m.includes('at least 6')) return 'A senha deve ter ao menos 6 caracteres.';
+  if(m.includes('rate limit')||m.includes('too many')) return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
+  if(m.includes('network')||m.includes('failed to fetch')) return 'Sem conexão com o servidor. Verifique sua internet.';
+  return msg||'Não foi possível concluir. Tente novamente.';
+}
+
 /* ══════════════════════ THEME ══════════════════════ */
 const LIGHT = {
   dark:false,
@@ -185,30 +234,124 @@ function useRouter(){
 
 /* ══════════════════════ AUTH ══════════════════════ */
 const DEF={name:'',email:'',objetivo:'ENEM',ano:'2025',curso:'',horas:'2',materias:[],nivel:'Intermediário',escola:'Escola Pública',horario:'Noite',estilo:'Sozinho',motivador:'Aprovação',xp:0,streak:1,lastLogin:''};
-function useAuth(){
+function useAuth(go){
   const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('ap_user'))||null;}catch(e){return null;}});
   const save=u=>{setUser(u);localStorage.setItem('ap_user',JSON.stringify(u));};
+  // `go` muda a cada render (useRouter recria) → guardamos em ref p/ evitar closure velha.
+  const goRef=useRef(go); goRef.current=go;
+
+  // Grava o perfil na nuvem (só quando Supabase ligado). NUNCA envia is_admin
+  // (o cliente não tem permissão de alterar essa coluna — quem manda é o RLS).
+  const supaPersist=(u)=>{
+    if(!SUPA_ENABLED||!u||!u.supaId) return;
+    loadSupabase().then(c=>{
+      const {supaId,is_admin,...rest}=u;
+      c.from('profiles').update({name:u.name||null,email:u.email||null,data:rest,updated_at:new Date().toISOString()}).eq('id',supaId).then(()=>{},()=>{});
+    }).catch(()=>{});
+  };
+
+  // Monta o objeto de usuário a partir da sessão + linha da tabela profiles.
+  const hydrateFromSession=useCallback(async (client, session, navigate)=>{
+    try{
+      const uid=session.user.id;
+      const email=session.user.email||'';
+      let prof={};
+      try{ const {data}=await client.from('profiles').select('name,data,is_admin').eq('id',uid).maybeSingle(); prof=data||{}; }catch(e){}
+      let existing=null; try{ existing=JSON.parse(localStorage.getItem('ap_user')); }catch(e){}
+      const sameUser = existing && existing.email && existing.email.toLowerCase()===email.toLowerCase();
+      const base = sameUser ? existing : DEF;
+      const meta = session.user.user_metadata||{};
+      const n={
+        ...base,
+        ...(prof.data||{}),
+        name: (prof.name||base.name||meta.name||meta.full_name||email.split('@')[0]),
+        email,
+        is_admin: !!prof.is_admin,   // decisão do SERVIDOR (RLS), não do navegador
+        supaId: uid,
+      };
+      const today=new Date().toDateString();
+      if(n.lastLogin!==today){ n.xp=(n.xp||0)+5; n.lastLogin=today; }
+      save(n);
+      supaPersist(n);
+      if(navigate && typeof goRef.current==='function'){
+        const done=localStorage.getItem('ap_onboarding_done')==='1';
+        goRef.current(done?'questoes':'onboarding');
+      }
+    }catch(e){ console.warn('hydrate falhou', e); }
+  },[]);
+
+  // Ao abrir o app: se Supabase ligado, detecta sessão existente (inclui o
+  // retorno do OAuth do Google) e escuta mudanças de login/logout.
+  useEffect(()=>{
+    if(!SUPA_ENABLED) return;
+    let alive=true, sub=null;
+    (async()=>{
+      try{
+        const client=await loadSupabase();
+        const {data:{session}}=await client.auth.getSession();
+        if(session && alive) await hydrateFromSession(client, session, true);
+        const r=client.auth.onAuthStateChange(async (_ev, sess)=>{
+          if(!alive) return;
+          if(sess) await hydrateFromSession(client, sess, _ev==='SIGNED_IN');
+          else { setUser(null); localStorage.removeItem('ap_user'); }
+        });
+        sub=r && r.data && r.data.subscription;
+      }catch(e){ console.warn('Supabase init falhou', e); }
+    })();
+    return ()=>{ alive=false; if(sub&&sub.unsubscribe) sub.unsubscribe(); };
+  },[]);
+
   const login=u=>{
-    // Se já existe um usuário salvo com o MESMO e-mail, faz login MESCLANDO
-    // com os dados existentes (perfil, XP, streak, foto etc.) em vez de
-    // sobrescrever tudo com os valores padrão — evita que o perfil "resete"
-    // a cada novo login (bug que afetava principalmente o "Continuar com
-    // Google", já que ele sempre usa o mesmo e-mail fixo).
+    // Login LOCAL (modo sem back-end). Se já existe um usuário salvo com o
+    // MESMO e-mail, faz login MESCLANDO com os dados existentes (perfil, XP,
+    // streak, foto etc.) em vez de sobrescrever tudo com os valores padrão —
+    // evita que o perfil "resete" a cada novo login.
     let existing=null;
     try{ existing=JSON.parse(localStorage.getItem('ap_user')); }catch(e){}
     const sameUser = existing && existing.email && u.email
       && existing.email.toLowerCase()===u.email.toLowerCase();
     const base = sameUser ? existing : DEF;
     const n={...base,...u};
-    // daily login XP
     const today=new Date().toDateString();
     if(n.lastLogin!==today){n.xp=(n.xp||0)+5;n.lastLogin=today;}
     save(n);
   };
-  const logout=()=>{setUser(null);localStorage.removeItem('ap_user');localStorage.removeItem('ap_page');localStorage.removeItem('ap_onboarding_done');};
-  const update=u=>{const n={...user,...u};save(n);};
-  const addXP=(amt)=>{const n={...user,xp:(user?.xp||0)+amt};save(n);return n.xp;};
-  return {user,login,logout,update,addXP};
+  const logout=()=>{
+    if(SUPA_ENABLED){ loadSupabase().then(c=>{c.auth.signOut().catch(()=>{});}).catch(()=>{}); }
+    setUser(null);localStorage.removeItem('ap_user');localStorage.removeItem('ap_page');localStorage.removeItem('ap_onboarding_done');
+  };
+  const update=u=>{const n={...user,...u};save(n);supaPersist(n);};
+  const addXP=(amt)=>{const n={...user,xp:(user?.xp||0)+amt};save(n);supaPersist(n);return n.xp;};
+
+  // ── Helpers de autenticação REAL (só quando Supabase ligado) ──
+  const supaSignIn=async(email,pass)=>{
+    try{
+      const client=await loadSupabase();
+      const {data,error}=await client.auth.signInWithPassword({email:(email||'').trim(),password:pass});
+      if(error) return {error:traduzErroSupa(error.message)};
+      if(data&&data.session) await hydrateFromSession(client,data.session,true);
+      return {};
+    }catch(e){ return {error:traduzErroSupa(e.message)}; }
+  };
+  const supaSignUp=async(email,pass,name)=>{
+    try{
+      const client=await loadSupabase();
+      const {data,error}=await client.auth.signUp({email:(email||'').trim(),password:pass,options:{data:{name:name||''}}});
+      if(error) return {error:traduzErroSupa(error.message)};
+      if(data&&data.session){ await hydrateFromSession(client,data.session,true); return {}; }
+      return {needConfirm:true}; // projeto com "confirmar email" ligado
+    }catch(e){ return {error:traduzErroSupa(e.message)}; }
+  };
+  const supaGoogle=async()=>{
+    try{
+      const client=await loadSupabase();
+      const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});
+      if(error) return {error:traduzErroSupa(error.message)};
+      return {}; // redireciona para o Google; ao voltar, o efeito acima hidrata
+    }catch(e){ return {error:traduzErroSupa(e.message)}; }
+  };
+
+  return {user,login,logout,update,addXP,supaEnabled:SUPA_ENABLED,supaSignIn,supaSignUp,supaGoogle};
 }
 
 /* ══════════════════════ THEME HOOK ══════════════════════ */
@@ -6403,16 +6546,33 @@ function Login({ go, auth }) {
   const [email,setEmail]=useState('');
   const [pass,setPass]=useState('');
   const [err,setErr]=useState('');
+  const [busy,setBusy]=useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     if(!email||!pass){ setErr('Preencha todos os campos.'); return; }
     if(pass.length<6){ setErr('Senha deve ter ao menos 6 caracteres.'); return; }
+    // Back-end real: valida email+senha no servidor (Supabase). O roteamento
+    // é feito pelo hydrate quando a sessão chega.
+    if(auth.supaEnabled){
+      setErr(''); setBusy(true);
+      const { error } = await auth.supaSignIn(email, pass);
+      setBusy(false);
+      if(error){ setErr(error); return; }
+      return;
+    }
+    // Modo local (sem back-end): login só no navegador.
     const done=localStorage.getItem('ap_onboarding_done')==='1';
     auth.login({ name:email.split('@')[0], email });
     go(done ? 'questoes' : 'onboarding');
   };
 
-  const google = () => {
+  const google = async () => {
+    if(auth.supaEnabled){
+      setErr(''); setBusy(true);
+      const { error } = await auth.supaGoogle(); // redireciona para o Google
+      if(error){ setBusy(false); setErr(error); }
+      return;
+    }
     const done=localStorage.getItem('ap_onboarding_done')==='1';
     auth.login({ name:'Usuário Google', email:'usuario@gmail.com' });
     go(done ? 'questoes' : 'onboarding');
@@ -6428,7 +6588,7 @@ function Login({ go, auth }) {
           <p style={{color:'#9CA3AF',fontSize:12,margin:'2px 0 0'}}>Entre na sua conta</p>
         </div>
 
-        <button onClick={google} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:12,border:'2px solid #E5E7EB',borderRadius:14,padding:'12px',background:'#fff',cursor:'pointer',marginBottom:20,fontWeight:600,color:'#374151',fontSize:14}}>
+        <button onClick={google} disabled={busy} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:12,border:'2px solid #E5E7EB',borderRadius:14,padding:'12px',background:'#fff',cursor:busy?'not-allowed':'pointer',opacity:busy?.6:1,marginBottom:20,fontWeight:600,color:'#374151',fontSize:14}}>
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -6453,7 +6613,7 @@ function Login({ go, auth }) {
 
         <button onClick={()=>go('forgot-password')} style={{display:'block',textAlign:'right',width:'100%',color:'#163A70',fontSize:12,background:'none',border:'none',cursor:'pointer',marginBottom:16}}>Esqueceu a senha?</button>
 
-        <Btn v="primary" full={true} onClick={submit}>Entrar</Btn>
+        <Btn v="primary" full={true} onClick={submit} disabled={busy}>{busy?'Entrando…':'Entrar'}</Btn>
 
         <p style={{textAlign:'center',fontSize:14,color:'#6B7280',marginTop:16}}>
           Não tem conta?{' '}
@@ -6472,11 +6632,24 @@ function Register({ go, auth }) {
   const [pass,setPass]=useState('');
   const [otp,setOtp]=useState(['','','','','','']);
   const [err,setErr]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [info,setInfo]=useState('');
 
-  const next = () => {
+  const next = async () => {
     if(!name||!email||!pass){ setErr('Preencha todos os campos.'); return; }
     if(pass.length<6){ setErr('Senha deve ter ao menos 6 caracteres.'); return; }
-    setErr(''); setStep(2);
+    setErr('');
+    // Back-end real: cria a conta no servidor (Supabase).
+    if(auth.supaEnabled){
+      setBusy(true);
+      const { error, needConfirm } = await auth.supaSignUp(email, pass, name);
+      setBusy(false);
+      if(error){ setErr(error); return; }
+      localStorage.removeItem('ap_onboarding_done');
+      if(needConfirm){ setInfo('Conta criada! Enviamos um link de confirmação para '+email+'. Confirme o email e depois faça login.'); return; }
+      return; // sem confirmação: o hydrate já leva para o onboarding
+    }
+    setStep(2);
   };
   const verify = () => {
     if(otp.join('')!=='123456'){ setErr('Código inválido. Use 123456 para demo.'); return; }
@@ -6503,7 +6676,8 @@ function Register({ go, auth }) {
             <FInput label="Senha" type="password" placeholder="Mínimo 6 caracteres" value={pass} onChange={e=>setPass(e.target.value)}/>
           </div>
           {err && <p style={{color:'#EF4444',fontSize:12,margin:'0 0 8px'}}>{err}</p>}
-          <Btn v="primary" full={true} onClick={next}>Criar conta</Btn>
+          {info && <p style={{color:'#059669',fontSize:13,margin:'0 0 8px',fontWeight:600}}>{info}</p>}
+          <Btn v="primary" full={true} onClick={next} disabled={busy}>{busy?'Criando…':'Criar conta'}</Btn>
           <p style={{textAlign:'center',fontSize:14,color:'#6B7280',marginTop:16}}>
             Já tem conta?{' '}
             <button onClick={()=>go('login')} style={{color:'#163A70',fontWeight:700,background:'none',border:'none',cursor:'pointer'}}>Entrar</button>
@@ -9939,7 +10113,7 @@ function IAMentor({ auth }){
 
 function App() {
   const { page, go } = useRouter();
-  const auth = useAuth();
+  const auth = useAuth(go);
   const {toggle,dark} = useTheme();
 
   const PUBLIC = ['splash','login','register','forgot-password'];
@@ -9966,7 +10140,7 @@ function App() {
       case 'redacao':         return auth.user ? <Redacao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'evolucao':        return auth.user ? <Evolucao go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
       case 'perfil':          return auth.user ? <Perfil go={go} auth={auth}/> : <Login go={go} auth={auth}/>;
-      case 'admin':           return (auth.user && isAdminUser(auth.user.email)) ? <Admin go={go} auth={auth}/> : (auth.user ? <Questoes go={go} auth={auth}/> : <Login go={go} auth={auth}/>);
+      case 'admin':           return (auth.user && (SUPA_ENABLED ? !!auth.user.is_admin : isAdminUser(auth.user.email))) ? <Admin go={go} auth={auth}/> : (auth.user ? <Questoes go={go} auth={auth}/> : <Login go={go} auth={auth}/>);
       default:                return <Login go={go} auth={auth}/>;
     }
   };
