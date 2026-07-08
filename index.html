@@ -128,10 +128,15 @@ const APP_ICON = 'icon.svg';
        no código; quem protege os dados são as políticas RLS do Supabase.
    ⚠️ NUNCA cole aqui a "service_role key" (essa é secreta). Só a anon key.
    Passo a passo de configuração: veja SUPABASE_SETUP.sql neste repositório. */
-const SUPABASE_URL      = '';   // ex.: 'https://abcdefgh.supabase.co'
-const SUPABASE_ANON_KEY = '';   // ex.: 'eyJhbGciOi...'  (public anon key)
+const SUPABASE_URL      = 'https://gpiuvexnumhzyegtshvi.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_atshpbxZWldVpnFBUakEHA_Xa8nNHnS';
 const SUPA_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY
   && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(SUPABASE_URL));
+
+/* Senha padrão compartilhada por todos os alunos no primeiro acesso (login de
+   compra: usuário = email da compra, senha = padrão). O aluno pode trocar
+   depois em "Perfil → Trocar senha". */
+const DEFAULT_STUDENT_PASS = '123456789';
 
 /* Carrega o SDK do Supabase sob demanda (só quando configurado), com SRI. */
 let _supaClient = null, _supaLoading = null;
@@ -351,7 +356,46 @@ function useAuth(go){
     }catch(e){ return {error:traduzErroSupa(e.message)}; }
   };
 
-  return {user,login,logout,update,addXP,supaEnabled:SUPA_ENABLED,supaSignIn,supaSignUp,supaGoogle};
+  // "Login de compra": o aluno só digita o email (o mesmo da compra). A senha
+  // é sempre a padrão (DEFAULT_STUDENT_PASS) na primeira vez — se a conta
+  // ainda não existe, cria automaticamente; se já existe mas a senha padrão
+  // não bate, é sinal de que o aluno já trocou a senha (fallback: pede senha).
+  const supaAutoLogin=async(email)=>{
+    email=(email||'').trim();
+    if(!email) return {error:'Preencha o email.'};
+    try{
+      const client=await loadSupabase();
+      const r=await client.auth.signInWithPassword({email,password:DEFAULT_STUDENT_PASS});
+      if(r.data && r.data.session){ await hydrateFromSession(client,r.data.session,true); return {}; }
+      const msg=(r.error && r.error.message||'').toLowerCase();
+      if(msg.includes('invalid login')||msg.includes('invalid credentials')){
+        // Conta não existe ainda OU já tem senha própria diferente da padrão.
+        const su=await client.auth.signUp({email,password:DEFAULT_STUDENT_PASS});
+        if(su.error){
+          const m2=(su.error.message||'').toLowerCase();
+          if(m2.includes('already registered')||m2.includes('already exists')||m2.includes('user already')){
+            return {needsPassword:true}; // já tem conta com senha própria
+          }
+          return {error:traduzErroSupa(su.error.message)};
+        }
+        if(su.data && su.data.session){ await hydrateFromSession(client,su.data.session,true); return {}; }
+        return {needsPassword:true}; // fallback de segurança (ex.: confirmação ainda ligada)
+      }
+      return {error:traduzErroSupa(r.error?r.error.message:'Erro desconhecido.')};
+    }catch(e){ return {error:traduzErroSupa(e.message)}; }
+  };
+
+  // Permite ao aluno trocar a senha padrão por uma própria, quando quiser.
+  const supaChangePassword=async(newPass)=>{
+    try{
+      const client=await loadSupabase();
+      const {error}=await client.auth.updateUser({password:newPass});
+      if(error) return {error:traduzErroSupa(error.message)};
+      return {};
+    }catch(e){ return {error:traduzErroSupa(e.message)}; }
+  };
+
+  return {user,login,logout,update,addXP,supaEnabled:SUPA_ENABLED,supaSignIn,supaSignUp,supaGoogle,supaAutoLogin,supaChangePassword};
 }
 
 /* ══════════════════════ THEME HOOK ══════════════════════ */
@@ -6545,25 +6589,50 @@ function Splash({ go }) {
 function Login({ go, auth }) {
   const [email,setEmail]=useState('');
   const [pass,setPass]=useState('');
+  const [needsPassword,setNeedsPassword]=useState(false);
   const [err,setErr]=useState('');
   const [busy,setBusy]=useState(false);
+  const [lastEmail]=useState(()=>{ try{ return localStorage.getItem('ap_last_login_email')||''; }catch(e){ return ''; } });
 
+  // "Login de compra": o aluno só precisa digitar o EMAIL da compra. Por
+  // baixo dos panos tentamos a senha padrão (cria a conta automaticamente
+  // se ainda não existir). Só pedimos senha de verdade se o aluno já trocou.
   const submit = async () => {
-    if(!email||!pass){ setErr('Preencha todos os campos.'); return; }
-    if(pass.length<6){ setErr('Senha deve ter ao menos 6 caracteres.'); return; }
-    // Back-end real: valida email+senha no servidor (Supabase). O roteamento
-    // é feito pelo hydrate quando a sessão chega.
+    if(!email){ setErr('Preencha o email.'); return; }
     if(auth.supaEnabled){
       setErr(''); setBusy(true);
-      const { error } = await auth.supaSignIn(email, pass);
+      if(needsPassword){
+        if(!pass){ setBusy(false); setErr('Digite sua senha.'); return; }
+        const { error } = await auth.supaSignIn(email, pass);
+        setBusy(false);
+        if(error){ setErr(error); return; }
+        try{ localStorage.setItem('ap_last_login_email', email); }catch(e){}
+        return;
+      }
+      const { error, needsPassword:np } = await auth.supaAutoLogin(email);
       setBusy(false);
+      if(np){ setNeedsPassword(true); setErr('Você já trocou sua senha. Digite-a para entrar.'); return; }
       if(error){ setErr(error); return; }
+      try{ localStorage.setItem('ap_last_login_email', email); }catch(e){}
       return;
     }
     // Modo local (sem back-end): login só no navegador.
+    if(!pass){ setErr('Preencha a senha.'); return; }
     const done=localStorage.getItem('ap_onboarding_done')==='1';
     auth.login({ name:email.split('@')[0], email });
     go(done ? 'questoes' : 'onboarding');
+  };
+
+  // Botão de login automático: reentra com um clique usando o email da
+  // última vez que o aluno entrou (aparece depois do primeiro login).
+  const autoLoginBtn = async () => {
+    if(!lastEmail) return;
+    setErr(''); setBusy(true);
+    setEmail(lastEmail);
+    const { error, needsPassword:np } = await auth.supaAutoLogin(lastEmail);
+    setBusy(false);
+    if(np){ setNeedsPassword(true); setErr('Digite sua senha para entrar.'); return; }
+    if(error){ setErr(error); return; }
   };
 
   const google = async () => {
@@ -6588,6 +6657,12 @@ function Login({ go, auth }) {
           <p style={{color:'#9CA3AF',fontSize:12,margin:'2px 0 0'}}>Entre na sua conta</p>
         </div>
 
+        {auth.supaEnabled && lastEmail && !needsPassword && (
+          <button onClick={autoLoginBtn} disabled={busy} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:10,border:'none',borderRadius:14,padding:'13px',background:'linear-gradient(135deg,#163A70,#38BDF8)',cursor:busy?'not-allowed':'pointer',opacity:busy?.6:1,marginBottom:14,fontWeight:700,color:'#fff',fontSize:14}}>
+            ⚡ Entrar automaticamente como {lastEmail}
+          </button>
+        )}
+
         <button onClick={google} disabled={busy} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:12,border:'2px solid #E5E7EB',borderRadius:14,padding:'12px',background:'#fff',cursor:busy?'not-allowed':'pointer',opacity:busy?.6:1,marginBottom:20,fontWeight:600,color:'#374151',fontSize:14}}>
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -6600,18 +6675,25 @@ function Login({ go, auth }) {
 
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
           <div style={{flex:1,height:1,background:'#E5E7EB'}}/>
-          <span style={{fontSize:12,color:'#9CA3AF'}}>ou entre com email</span>
+          <span style={{fontSize:12,color:'#9CA3AF'}}>ou entre com o email da compra</span>
           <div style={{flex:1,height:1,background:'#E5E7EB'}}/>
         </div>
 
         <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:8}}>
-          <FInput label="Email" type="email" placeholder="seu@email.com" value={email} onChange={e=>setEmail(e.target.value)}/>
-          <FInput label="Senha" type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)}/>
+          <FInput label="Email" type="email" placeholder="o mesmo email usado na compra" value={email} onChange={e=>{setEmail(e.target.value); if(needsPassword){setNeedsPassword(false); setPass('');} setErr('');}}/>
+          {(needsPassword || !auth.supaEnabled) && (
+            <FInput label="Senha" type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)}/>
+          )}
         </div>
+        {auth.supaEnabled && !needsPassword && (
+          <p style={{color:'#9CA3AF',fontSize:11,margin:'0 0 8px'}}>Alunos: basta digitar o email da compra — sua senha inicial é criada automaticamente.</p>
+        )}
 
         {err && <p style={{color:'#EF4444',fontSize:12,textAlign:'center',margin:'4px 0 8px'}}>{err}</p>}
 
-        <button onClick={()=>go('forgot-password')} style={{display:'block',textAlign:'right',width:'100%',color:'#163A70',fontSize:12,background:'none',border:'none',cursor:'pointer',marginBottom:16}}>Esqueceu a senha?</button>
+        {(needsPassword || !auth.supaEnabled) && (
+          <button onClick={()=>go('forgot-password')} style={{display:'block',textAlign:'right',width:'100%',color:'#163A70',fontSize:12,background:'none',border:'none',cursor:'pointer',marginBottom:16}}>Esqueceu a senha?</button>
+        )}
 
         <Btn v="primary" full={true} onClick={submit} disabled={busy}>{busy?'Entrando…':'Entrar'}</Btn>
 
@@ -6645,6 +6727,7 @@ function Register({ go, auth }) {
       const { error, needConfirm } = await auth.supaSignUp(email, pass, name);
       setBusy(false);
       if(error){ setErr(error); return; }
+      try{ localStorage.setItem('ap_last_login_email', email); }catch(e){}
       localStorage.removeItem('ap_onboarding_done');
       if(needConfirm){ setInfo('Conta criada! Enviamos um link de confirmação para '+email+'. Confirme o email e depois faça login.'); return; }
       return; // sem confirmação: o hydrate já leva para o onboarding
@@ -8879,6 +8962,25 @@ function Perfil({ go, auth }) {
 
   const removePhoto = () => auth.update({photo: null});
 
+  /* ── trocar senha (login de compra usa senha padrão; aluno pode trocar) ── */
+  const [showPassForm,setShowPassForm]=useState(false);
+  const [newPass,setNewPass]=useState('');
+  const [newPass2,setNewPass2]=useState('');
+  const [passErr,setPassErr]=useState('');
+  const [passOk,setPassOk]=useState('');
+  const [passBusy,setPassBusy]=useState(false);
+  const trocarSenha = async () => {
+    setPassErr(''); setPassOk('');
+    if(!newPass||newPass.length<6){ setPassErr('A senha deve ter ao menos 6 caracteres.'); return; }
+    if(newPass!==newPass2){ setPassErr('As senhas não coincidem.'); return; }
+    setPassBusy(true);
+    const { error } = await auth.supaChangePassword(newPass);
+    setPassBusy(false);
+    if(error){ setPassErr(error); return; }
+    setPassOk('Senha alterada com sucesso!');
+    setNewPass(''); setNewPass2(''); setShowPassForm(false);
+  };
+
   /* ── helpers do plano ── */
   const pick=arr=>arr[Math.floor(Math.random()*arr.length)];
   const shuffle=arr=>[...arr].sort(()=>Math.random()-.5);
@@ -9288,6 +9390,28 @@ function Perfil({ go, auth }) {
           )}
           {!plano && !loading && <p style={{color:'var(--sub)',fontSize:13,margin:'8px 0 0'}}>Gere um plano personalizado com IA baseado no seu perfil.</p>}
         </Card>
+
+        {/* Trocar senha (login de compra usa senha padrão; aluno pode trocar aqui) */}
+        {auth.supaEnabled && (
+          <Card className="mb-3">
+            <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 4px',fontSize:15}}>🔒 Senha de acesso</h3>
+            <p style={{fontSize:12,color:'var(--sub)',margin:'0 0 12px'}}>Seu login inicial usa uma senha padrão. Se quiser, defina uma senha própria abaixo.</p>
+            {!showPassForm ? (
+              <Btn v="ghost" full={true} onClick={()=>{setShowPassForm(true);setPassOk('');setPassErr('');}}>Trocar senha</Btn>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <FInput label="Nova senha" type="password" placeholder="mínimo 6 caracteres" value={newPass} onChange={e=>setNewPass(e.target.value)}/>
+                <FInput label="Confirmar nova senha" type="password" placeholder="repita a senha" value={newPass2} onChange={e=>setNewPass2(e.target.value)}/>
+                {passErr && <p style={{color:'#EF4444',fontSize:12,margin:0}}>{passErr}</p>}
+                <div style={{display:'flex',gap:8}}>
+                  <Btn v="ghost" onClick={()=>{setShowPassForm(false);setNewPass('');setNewPass2('');setPassErr('');}}>Cancelar</Btn>
+                  <Btn v="primary" onClick={trocarSenha} disabled={passBusy}>{passBusy?'Salvando…':'Salvar nova senha'}</Btn>
+                </div>
+              </div>
+            )}
+            {passOk && <p style={{color:'#10B981',fontSize:12,margin:'8px 0 0',fontWeight:600}}>{passOk}</p>}
+          </Card>
+        )}
 
         <Btn v="danger" full={true} onClick={()=>{auth.logout();go('login');}}>Sair da conta</Btn>
       </div>
