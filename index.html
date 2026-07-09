@@ -6506,6 +6506,19 @@ function Progress({ val, color='#163A70' }) {
   );
 }
 
+function PassoAPasso({ passos=[] }) {
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+      {passos.map((p,i)=>(
+        <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10}}>
+          <span style={{flexShrink:0,width:22,height:22,borderRadius:'50%',background:'#163A70',color:'#fff',fontSize:11,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',marginTop:1}}>{i+1}</span>
+          <p style={{margin:0,fontSize:13,color:'var(--text)',lineHeight:1.5}}>{p}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Chip({ children, color='blue' }) {
   const map = { blue:'#DBEAFE:#1E40AF', gold:'#E0F2FE:#0369A1', green:'#DCFCE7:#166534', red:'#FEE2E2:#991B1B', gray:'#F3F4F6:#374151', purple:'#EDE9FE:#5B21B6' };
   const [bg,tx] = (map[color]||map.gray).split(':');
@@ -8925,6 +8938,11 @@ function Perfil({ go, auth }) {
 
   const removePhoto = () => auth.update({photo: null});
 
+  /* ── instalar app na tela inicial (passo a passo) ── */
+  const [instalarTab,setInstalarTab]=useState(()=>{
+    try{ return /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' : 'android'; }catch(e){ return 'android'; }
+  });
+
   /* ── trocar senha (login de compra usa senha padrão; aluno pode trocar) ── */
   const [showPassForm,setShowPassForm]=useState(false);
   const [newPass,setNewPass]=useState('');
@@ -9247,6 +9265,56 @@ function Perfil({ go, auth }) {
               }}/>
             </button>
           </div>
+        </Card>
+
+        {/* Instalar o app na tela inicial */}
+        <Card className="mb-3">
+          <h3 style={{fontWeight:700,color:'var(--text)',margin:'0 0 4px',fontSize:15}}>📲 Instalar o app</h3>
+          <p style={{fontSize:12,color:'var(--sub)',margin:'0 0 14px'}}>Coloque o Aprova IA na tela inicial do seu celular — abre rápido, em tela cheia, como um aplicativo de verdade.</p>
+
+          <div style={{display:'flex',gap:8,marginBottom:16}}>
+            {[{k:'ios',l:'🍎 iPhone'},{k:'android',l:'🤖 Android'}].map(t=>(
+              <button key={t.k} onClick={()=>setInstalarTab(t.k)} style={{
+                flex:1,padding:'9px 0',borderRadius:10,fontWeight:700,fontSize:13,cursor:'pointer',
+                border:instalarTab===t.k?'2px solid #163A70':'2px solid var(--border)',
+                background:instalarTab===t.k?'#163A70':'var(--card2)',
+                color:instalarTab===t.k?'#fff':'var(--text)',transition:'all .2s'
+              }}>{t.l}</button>
+            ))}
+          </div>
+
+          {instalarTab==='ios' ? (
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              <div>
+                <p style={{fontSize:13,fontWeight:700,color:'var(--text)',margin:'0 0 8px',display:'flex',alignItems:'center',gap:6}}>
+                  <Chip color="blue">Recomendado</Chip> Pelo Safari
+                </p>
+                <PassoAPasso passos={[
+                  <>Abra <b>aprovaia.com.br</b> (ou o link do app) no <b>Safari</b>.</>,
+                  <>Toque no ícone de <b>compartilhamento ⬆️</b> na barra de baixo.</>,
+                  <>Role as opções e toque em <b>"Adicionar à Tela de Início"</b>.</>,
+                  <>Confira o nome "Aprova IA" e toque em <b>"Adicionar"</b>, no canto superior direito.</>,
+                ]}/>
+              </div>
+              <div>
+                <p style={{fontSize:13,fontWeight:700,color:'var(--text)',margin:'0 0 8px'}}>Pelo Chrome</p>
+                <PassoAPasso passos={[
+                  <>Abra o app no <b>Chrome</b> e toque no ícone de <b>compartilhamento ⬆️</b> (ou nos três pontinhos <b>⋮</b> → "Compartilhar").</>,
+                  <>Na lista de ícones, arraste para a esquerda ou toque em <b>"Mais"</b> para ver todas as opções.</>,
+                  <>Procure <b>"Adicionar à Tela de Início"</b>. Se não aparecer, toque em <b>"Editar Ações"</b> no fim da lista e ative essa opção.</>,
+                  <>Toque em <b>"Adicionar à Tela de Início"</b> e depois em <b>"Adicionar"</b>.</>,
+                ]}/>
+                <p style={{fontSize:11,color:'var(--muted)',margin:'8px 0 0'}}>💡 No iPhone, o Safari dá o suporte mais completo (tela cheia e uso offline). Pelo Chrome, o atalho abre dentro do próprio navegador.</p>
+              </div>
+            </div>
+          ) : (
+            <PassoAPasso passos={[
+              <>Abra o app no <b>Chrome</b> (ou seu navegador padrão).</>,
+              <>Toque nos <b>três pontinhos ⋮</b> no canto superior direito.</>,
+              <>Toque em <b>"Adicionar à tela inicial"</b> (ou <b>"Instalar aplicativo"</b>, se aparecer).</>,
+              <>Confirme o nome "Aprova IA" e toque em <b>"Adicionar"</b> / <b>"Instalar"</b>.</>,
+            ]}/>
+          )}
         </Card>
 
         {/* Dados de estudo */}
